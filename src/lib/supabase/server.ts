@@ -4,28 +4,32 @@ import { cookies } from "next/headers";
 import type { Database } from "@/types/supabase";
 
 export function createClient() {
-  const cookieStore = cookies(); // ✅ synchronous
+  // ✅ Important: NO async, NO await here
+  const cookieStorePromise = cookies();
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
+        async get(name: string) {
+          const cookieStore = await cookieStorePromise;
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: CookieOptions) {
+        async set(name: string, value: string, options: CookieOptions) {
           try {
+            const cookieStore = await cookieStorePromise;
             cookieStore.set({ name, value, ...options });
           } catch {
-            // safe to ignore inside server components
+            // ignore inside server components
           }
         },
-        remove(name: string, options: CookieOptions) {
+        async remove(name: string, options: CookieOptions) {
           try {
+            const cookieStore = await cookieStorePromise;
             cookieStore.set({ name, value: "", ...options });
           } catch {
-            // safe to ignore inside server components
+            // ignore inside server components
           }
         },
       },
