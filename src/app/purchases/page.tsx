@@ -1,85 +1,91 @@
-import { createClient } from "@/lib/supabase/server";
+// purchases/page.tsx
 
-export const dynamic = "force-dynamic";
+"use client";
 
-export default async function NewPurchasePage() {
-  const supabase = createClient();
+import { useEffect, useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { format } from "date-fns";
+import PurchaseForm from "./purchase-form";
 
-  // fetch suppliers + products for dropdowns
-  const { data: suppliers } = await supabase.from("suppliers").select("id, name");
-  const { data: products } = await supabase.from("products").select("id, name");
+// Type to match the 'purchase_transactions' VIEW structure
+type PurchaseItem = {
+  id: number | null;
+  date: string | null;
+  supplier_name: string | null;
+  product_name: string | null;
+  qty: number | null;
+  total_amount: number | null;
+};
+
+export default function PurchasesPage() {
+    const supabase = createClient();
+    const [recentItems, setRecentItems] = useState<PurchaseItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchRecentItems = useCallback(async () => {
+        setIsLoading(true);
+        const { data, error } = await supabase
+            .from('purchase_transactions')
+            .select('*')
+            .limit(10);
+        
+        if (error) {
+            console.error("Error fetching recent purchases:", error);
+        } else {
+            setRecentItems(data || []);
+        }
+        setIsLoading(false);
+    }, [supabase]);
+
+    useEffect(() => {
+        fetchRecentItems();
+    }, [fetchRecentItems]);
 
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">New Purchase</h1>
       </div>
+      
+      {/* Main Form Component */}
+      <PurchaseForm onSaveSuccess={fetchRecentItems} />
 
-      <form
-        action="/api/purchases"
-        method="post"
-        className="card p-6 flex flex-col gap-4 max-w-lg"
-      >
-        {/* Supplier */}
-        <label className="flex flex-col gap-1">
-          <span>Supplier</span>
-          <select name="supplier_id" className="border p-2 rounded" required>
-            <option value="">Select supplier</option>
-            {suppliers?.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Product */}
-        <label className="flex flex-col gap-1">
-          <span>Product</span>
-          <select name="product_id" className="border p-2 rounded" required>
-            <option value="">Select product</option>
-            {products?.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Quantity */}
-        <label className="flex flex-col gap-1">
-          <span>Quantity</span>
-          <input
-            type="number"
-            name="qty"
-            step="1"
-            className="border p-2 rounded"
-            required
-          />
-        </label>
-
-        {/* Price */}
-        <label className="flex flex-col gap-1">
-          <span>Price per unit</span>
-          <input
-            type="number"
-            name="price_per_unit"
-            step="0.01"
-            className="border p-2 rounded"
-            required
-          />
-        </label>
-
-        {/* Notes */}
-        <label className="flex flex-col gap-1">
-          <span>Notes</span>
-          <textarea name="notes" className="border p-2 rounded" rows={2} />
-        </label>
-
-        <button type="submit" className="btn">
-          Save Purchase
-        </button>
-      </form>
+      {/* Recent Items History */}
+      <div className="card">
+        <div className="card-header">
+            <h2 className="card-title">Recently Purchased Items</h2>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+            <table className="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Supplier</th>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {isLoading ? (
+                      <tr><td colSpan={5} className="empty">Loading history...</td></tr>
+                    ) : recentItems.length === 0 ? (
+                      <tr><td colSpan={5} className="empty">No recent purchases found.</td></tr>
+                    ) : (
+                      recentItems.map(item => (
+                          <tr key={item.id}>
+                              <td>{item.date ? format(new Date(item.date), 'dd MMM, yyyy') : 'N/A'}</td>
+                              <td>{item.supplier_name}</td>
+                              <td>{item.product_name}</td>
+                              <td>{item.qty}</td>
+                              <td>₹{(item.total_amount ?? 0).toFixed(2)}</td>
+                          </tr>
+                      ))
+                    )}
+                </tbody>
+            </table>
+        </div>
+      </div>
     </div>
   );
 }
