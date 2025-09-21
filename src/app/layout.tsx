@@ -22,11 +22,17 @@ export default function RootLayout({
             <SidebarNavItem href="/products" icon="cube">
               Products
             </SidebarNavItem>
+            <SidebarNavItem href="/customers" icon="users">
+              Customers
+            </SidebarNavItem>
             <SidebarNavItem href="/parties" icon="users">
               Parties
             </SidebarNavItem>
             <SidebarNavItem href="/purchases" icon="purchases">
               Purchases
+            </SidebarNavItem>
+            <SidebarNavItem href="/sales" icon="sales">
+              Sales
             </SidebarNavItem>
           </nav>
         </aside>

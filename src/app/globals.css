@@ -295,3 +295,89 @@
   gap: 16px;
   align-items: end;
 }
+/* --- Improved Summary Card Styles --- */
+.summary-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* Space between rows */
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.summary-label {
+  color: #4b5563; /* Softer text color for labels */
+}
+
+.summary-value {
+  font-weight: 600;
+  font-size: 16px;
+  color: #111827;
+}
+
+/* Style for the 'Advance' input to make it fit in */
+.summary-row .form-input {
+  width: 130px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 6px 10px;
+  background-color: #f9fafb;
+}
+
+.summary-divider {
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  margin: 4px 0;
+}
+
+.summary-total-row {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summary-total-row .summary-label {
+  font-weight: 600;
+  font-size: 16px;
+  color: #111827;
+}
+
+.summary-total-row .summary-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #dc2626; /* Red color for balance due */
+}
+
+/* --- Improved Payment Card Grid --- */
+.payment-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 16px;
+}
+
+/* On medium screens and up, switch to a 2x2 grid */
+@media (min-width: 768px) {
+  .payment-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --- Button Enhancements --- */
+.btn-success {
+  background-color: #22c55e;
+  color: #fff;
+}
+.btn-success:hover {
+  background-color: #16a34a;
+}
+.btn-lg {
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  width: 100%;
+}

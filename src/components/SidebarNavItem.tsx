@@ -6,6 +6,7 @@ import {
   CubeIcon,
   UsersIcon,
   ReceiptPercentIcon,
+  ShoppingCartIcon,
 } from '@heroicons/react/24/outline'
 
 export function SidebarNavItem({
@@ -14,7 +15,7 @@ export function SidebarNavItem({
   children,
 }: {
   href: string
-  icon: 'cube' | 'users' | 'purchases'
+  icon: 'cube' | 'users' | 'purchases' | 'sales' | 'customers'
   children: string
 }) {
   const pathname = usePathname()
@@ -23,10 +24,12 @@ export function SidebarNavItem({
   const Icon =
     icon === 'cube'
       ? CubeIcon
-      : icon === 'users'
+      : icon === 'users' || icon === 'customers'
       ? UsersIcon
       : icon === 'purchases'
       ? ReceiptPercentIcon
+      : icon === 'sales'
+      ? ShoppingCartIcon
       : CubeIcon // fallback
 
   return (
