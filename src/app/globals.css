@@ -1,27 +1,35 @@
-/* App layout */
+/* --- Global & App Layout --- */
+/* Added a very subtle gradient to the background for a less flat look */
+body {
+  background-color: #f9fafb;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .app-layout {
   display: flex;
   height: 100vh;
-  background: #f9fafb;
-  font-family: 'Inter', sans-serif;
 }
 
-/* Sidebar */
+/* --- Sidebar --- */
+/* Slightly refined sidebar styles for better contrast */
 .sidebar {
   width: 240px;
   background: #ffffff;
   border-right: 1px solid #e5e7eb;
-  color: #111827;
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.02);
 }
 
 .logo {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   margin-bottom: 32px;
   color: #111827;
+  letter-spacing: -0.5px;
 }
 
 .nav {
@@ -33,13 +41,13 @@
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   color: #374151;
   font-weight: 500;
   text-decoration: none;
-  transition: background 0.2s, color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .nav-item:hover {
@@ -48,8 +56,9 @@
 }
 
 .nav-item.active {
-  background: #2563eb; /* blue active */
+  background: #2563eb;
   color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.1);
 }
 
 .icon {
@@ -57,42 +66,35 @@
   height: 20px;
 }
 
-/* Main content */
+/* --- Main Content Area --- */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  background-color: #f9fafb; /* Lighter gray for content area */
 }
 
-/* Top header */
 .header {
   height: 60px;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-  padding: 0 24px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
   z-index: 10;
-}
-
-.header-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
 }
 
 .content {
   flex: 1;
-  padding: 24px;
+  padding: 32px;
   overflow-y: auto;
 }
 
-/* Page */
+/* --- Page & Card Enhancements --- */
 .page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .page-header {
@@ -102,40 +104,22 @@
 }
 
 .page-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
   color: #111827;
+  letter-spacing: -0.5px;
 }
 
-/* Search bar */
-.search-input {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  width: 260px;
-  outline: none;
-}
-
-.search-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
-}
-
-/* Card */
 .card {
   background: #fff;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  overflow: hidden;
+  /* Softer, more modern shadow */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
+  padding: 16px 24px;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -146,228 +130,150 @@
 }
 
 .card-body {
-  padding: 16px 20px;
+  padding: 24px;
 }
 
-/* Table */
-.table,
-.data-table {
+/* --- Table Enhancements --- */
+.table, .data-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.table th,
-.table td,
-.data-table th,
-.data-table td {
-  padding: 14px 16px;
+.table th, .table td,
+.data-table th, .data-table td {
+  padding: 12px 16px;
   text-align: left;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #f3f4f6; /* Lighter border for rows */
   font-size: 14px;
+  vertical-align: middle;
 }
 
-.table thead,
-.data-table thead {
+.table thead, .data-table thead {
   background: #f9fafb;
+}
+
+.table th, .data-table th {
   font-weight: 600;
-  color: #374151;
+  color: #4b5563;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
 .table tbody tr:hover,
 .data-table tbody tr:hover {
-  background: #f3f4f6;
+  background-color: #f7f8ff;
 }
 
-.table tbody tr:nth-child(even),
-.data-table tbody tr:nth-child(even) {
-  background: #fafafa;
-}
-
-/* Badges */
-.badge {
-  background: #eef2ff;
-  color: #3730a3;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-/* Stock highlight */
-.low-stock {
-  color: #dc2626;
-  font-weight: 600;
-}
-
-/* Empty state */
-.empty {
-  padding: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
-/* Buttons */
-.btn {
-  background: #2563eb;
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.btn:hover {
-  background: #1e40af;
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 13px;
-}
-
-/* Balance cards */
-.balance {
-  padding: 12px;
-  border-radius: 6px;
-  margin-bottom: 16px;
-  font-weight: bold;
-}
-
-.balance.credit {
-  background: #e8f8ec;
-  color: #008000;
-}
-
-.balance.debit {
-  background: #fdecec;
-  color: #b00020;
-}
-
-.debit {
-  color: #b00020;
-}
-.credit {
-  color: #008000;
-}
+/* --- Form Elements --- */
 .form-input, .form-select {
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
   width: 100%;
-  box-sizing: border-box; /* Ensures padding doesn't affect width */
-  outline: none;
+  box-sizing: border-box;
   background-color: #fff;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.2s ease;
 }
 
 .form-input:focus, .form-select:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
-}
-
-/* New styles for the autocomplete dropdowns */
-.autocomplete-dropdown {
-  position: absolute;
-  background-color: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  width: 100%;
-  margin-top: 4px;
-  z-index: 20;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.autocomplete-item {
-  padding: 10px 12px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.autocomplete-item:hover {
-  background-color: #f3f4f6;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  outline: none;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
   align-items: end;
 }
-/* --- Improved Summary Card Styles --- */
-.summary-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px; /* Space between rows */
+
+/* --- Customer Detail Page Specifics --- */
+.bill-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
-.summary-row {
+.bill-header {
+  background: #f9fafb;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.bill-header .bill-no {
+  font-weight: 700;
+  font-size: 18px;
+  color: #111827;
+}
+
+.bill-summary {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
   font-size: 14px;
 }
 
-.summary-label {
-  color: #4b5563; /* Softer text color for labels */
+.summary-item span {
+  color: #6b7280;
 }
 
-.summary-value {
+.summary-item .value {
   font-weight: 600;
-  font-size: 16px;
   color: #111827;
 }
 
-/* Style for the 'Advance' input to make it fit in */
-.summary-row .form-input {
-  width: 130px;
-  text-align: right;
-  font-weight: 600;
-  font-size: 16px;
-  padding: 6px 10px;
-  background-color: #f9fafb;
+.summary-item .value.positive {
+  color: #16a34a; /* Green */
 }
 
-.summary-divider {
-  border: 0;
-  border-top: 1px solid #e5e7eb;
-  margin: 4px 0;
+.summary-item .value.negative {
+  color: #dc2626; /* Red */
 }
 
-.summary-total-row {
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
+/* Transaction Type Badges */
+.type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 9999px;
+  text-transform: capitalize;
 }
 
-.summary-total-row .summary-label {
-  font-weight: 600;
-  font-size: 16px;
-  color: #111827;
+.type-badge.sale { background-color: #dbeafe; color: #1e40af; }
+.type-badge.payment { background-color: #dcfce7; color: #166534; }
+.type-badge.payout { background-color: #ffedd5; color: #9a3412; }
+
+/* --- General Button Styles --- */
+.btn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 
-.summary-total-row .summary-value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #dc2626; /* Red color for balance due */
+.btn-primary {
+  background-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+}
+.btn-primary:hover {
+  background-color: #1d4ed8;
 }
 
-/* --- Improved Payment Card Grid --- */
-.payment-grid {
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 16px;
-}
-
-/* On medium screens and up, switch to a 2x2 grid */
-@media (min-width: 768px) {
-  .payment-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* --- Button Enhancements --- */
 .btn-success {
   background-color: #22c55e;
   color: #fff;
@@ -375,9 +281,8 @@
 .btn-success:hover {
   background-color: #16a34a;
 }
+
 .btn-lg {
-  padding: 12px 20px;
+  padding: 12px 24px;
   font-size: 16px;
-  font-weight: 600;
-  width: 100%;
 }

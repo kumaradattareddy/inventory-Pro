@@ -1,78 +1,117 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "../../../lib/supabase/client"; 
 
+// --- Type Definitions ---
 type Customer = {
   id: number;
   name: string;
-  balance: number;
+  opening_balance: number;
 };
 
 type Transaction = {
-  id: string;
+  bill_no: string | null;
   date: string;
-  type: "sale" | "payment";
-  product_name?: string;
-  other_name?: string;
+  type: "Sale" | "Payment" | "Payout";
+  details: string;
   amount: number;
-  direction: "credit" | "debit";
-  running_balance: number;
+  running_balance?: number;
 };
 
+type GroupedTransactions = {
+  [bill_no: string]: Transaction[];
+};
+
+type BillGroup = {
+  billNo: string;
+  items: Transaction[];
+  summary: {
+    totalSale: number;
+    totalPaid: number;
+    billBalance: number;
+  };
+};
+
+// --- Main Component ---
 export default function CustomerDetailClient({ id }: { id: string }) {
   const supabase = createClient();
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [billGroups, setBillGroups] = useState<BillGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       const customerId = Number(id);
 
-      // ✅ fetch customer with balance from view
       const { data: cust, error: custErr } = await supabase
-        .from("customer_totals")
-        .select("id, name, balance")
+        .from("customers")
+        .select("id, name, opening_balance")
         .eq("id", customerId)
         .single();
+      
+      if (custErr) console.error("Customer fetch error:", custErr);
+      else setCustomer(cust);
 
-      if (custErr) {
-        console.error("Customer fetch error:", custErr);
-      } else if (cust) {
-        setCustomer({
-          id: Number(cust.id),
-          name: cust.name ?? "",
-          balance: cust.balance ?? 0,
-        });
-      }
-
-      // ✅ fetch transactions
-      const { data: txns, error: txnErr } = await supabase
-        .from("customer_transactions_detailed")
-        .select("*")
+      const { data: bills, error: billsErr } = await supabase
+        .from("stock_moves")
+        .select("bill_no")
         .eq("customer_id", customerId)
-        .order("date", { ascending: true });
+        .neq("bill_no", null);
+      
+      const billNumbers = bills ? bills.map(b => b.bill_no).filter(Boolean) : [];
 
-      if (txnErr) {
-        console.error("Transactions fetch error:", txnErr);
-      } else {
-        const mapped: Transaction[] = (txns ?? []).map((t: any) => ({
-          id: t.id?.toString() ?? "",
-          date: t.date ?? "",
-          type: (t.type ?? "sale") as "sale" | "payment",
-          product_name: t.product_name ?? undefined,
-          other_name: t.other_name ?? undefined,
-          amount: t.amount ?? 0,
-          direction: (t.direction ?? "debit") as "credit" | "debit",
-          running_balance: t.running_balance ?? 0,
-        }));
-        setTransactions(mapped);
+      if (billNumbers.length > 0 && cust) {
+        const { data, error: txnErr } = await supabase
+          .from("bill_transaction_ledger")
+          .select("*") 
+          .in("bill_no", billNumbers)
+          .order("date", { ascending: true });
+
+        if (txnErr) {
+          console.error("Transactions fetch error:", txnErr);
+        } else if (data) {
+          const txns = data as Transaction[]; 
+          
+          let runningTotal = cust.opening_balance;
+          const transactionsWithBalance = txns.map(t => {
+            if (t.type === 'Sale' || t.type === 'Payment') {
+              runningTotal += t.amount;
+            }
+            return { ...t, running_balance: runningTotal };
+          });
+
+          const grouped = transactionsWithBalance.reduce((acc, txn) => {
+            const key = txn.bill_no || "misc";
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(txn);
+            return acc;
+          }, {} as GroupedTransactions);
+          
+          const finalBillGroups: BillGroup[] = Object.entries(grouped).map(([billNo, items]) => {
+            const totalSale = items.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0);
+            const totalPaid = items.filter(t => t.type === 'Payment').reduce((sum, t) => sum - t.amount, 0);
+            return {
+              billNo,
+              items,
+              summary: {
+                totalSale,
+                totalPaid,
+                billBalance: totalSale - totalPaid,
+              },
+            };
+          });
+          
+          finalBillGroups.sort((a, b) => 
+            new Date(a.items[0].date).getTime() - new Date(b.items[0].date).getTime()
+          );
+          
+          setBillGroups(finalBillGroups);
+        }
       }
-
       setLoading(false);
     }
-
     fetchData();
   }, [id, supabase]);
 
@@ -83,7 +122,7 @@ export default function CustomerDetailClient({ id }: { id: string }) {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">{customer.name}</h1>
-        <p className="text-gray-600">Opening Balance: ₹{customer.balance}</p>
+        <p>Opening Balance: ₹{customer.opening_balance.toLocaleString("en-IN")}</p>
       </div>
 
       <div className="card">
@@ -91,40 +130,65 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           <h2 className="card-title">Transaction History</h2>
         </div>
         <div className="card-body">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Product</th>
-                <th>Other Name</th>
-                <th>Amount</th>
-                <th>Running Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="empty">
-                    No transactions found.
-                  </td>
-                </tr>
-              ) : (
-                transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.date ? new Date(t.date).toLocaleDateString("en-IN") : "-"}</td>
-                    <td>{t.type}</td>
-                    <td>{t.product_name ?? "-"}</td>
-                    <td>{t.other_name ?? "-"}</td>
-                    <td className={t.direction === "credit" ? "text-green-600" : "text-red-600"}>
-                      {t.direction === "credit" ? "+" : "-"}₹{t.amount}
-                    </td>
-                    <td>₹{t.running_balance}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          {billGroups.length === 0 ? (
+            <div className="empty">No transactions found.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {billGroups.map(({ billNo, items, summary }) => (
+                <div key={billNo} className="bill-group">
+                  <div className="bill-header">
+                    <div className="bill-no">Bill No: {billNo}</div>
+                    <div className="bill-summary">
+                      <div className="summary-item">
+                        <span>Total Sale: </span>
+                        <span className="value">₹{summary.totalSale.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="summary-item">
+                        <span>Amount Paid: </span>
+                        <span className="value positive">₹{summary.totalPaid.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="summary-item">
+                        <span>Bill Balance: </span>
+                        <span className="value negative">₹{summary.billBalance.toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Details</th>
+                        <th style={{ textAlign: 'right' }}>Amount</th>
+                        <th style={{ textAlign: 'right' }}>Running Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((t, index) => (
+                        <tr key={index}>
+                          <td>{new Date(t.date).toLocaleDateString("en-IN", { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                          <td>
+                            <span className={`type-badge ${t.type.toLowerCase()}`}>
+                              {t.type}
+                            </span>
+                          </td>
+                          <td>{t.details}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 500 }} className={t.type === 'Payment' ? 'credit' : (t.type === 'Payout' ? 'debit' : '')}>
+                            {t.type === 'Payment' ? '-' : '+'}
+                            ₹{Math.abs(t.amount).toLocaleString("en-IN")}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                            ₹{t.running_balance?.toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
