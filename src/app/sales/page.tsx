@@ -217,12 +217,12 @@ export default function SalesPage() {
             <thead>
               <tr>
                 <th style={{width: "20%"}}>Product</th>
-                <th>Material</th>
+                <th style={{width: "80px"}}>Material</th>
                 <th>Size</th>
-                <th>Unit</th>
-                <th style={{width: "80px"}}>Qty</th>
-                <th style={{width: "100px"}}>Rate</th>
-                <th style={{width: "100px"}}>Amount</th>
+                <th style={{width: "70px"}}>Unit</th>
+                <th style={{width: "70px"}}>Qty</th>
+                <th style={{width: "70px"}}>Rate</th>
+                <th style={{width: "70px"}}>Amount</th>
                 <th style={{width: "20px"}}></th>
               </tr>
             </thead>
