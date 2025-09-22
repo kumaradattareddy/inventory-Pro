@@ -2,39 +2,41 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 
-type StockMove = Database["public"]["Tables"]["stock_moves"]["Insert"];
 type Payment = Database["public"]["Tables"]["payments"]["Insert"];
+type StockMove = Database["public"]["Tables"]["stock_moves"]["Insert"];
 
 export async function POST(req: Request) {
   const supabase = createClient();
   const body = await req.json();
 
-  const { billNo, billDate, customerName, openingBalance, advance, rows, payment } = body;
+  const { billNo, billDate, customerName, rows, customerPayment, payouts } = body;
 
-  // 1. Find or create the customer (No changes here)
-  let { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("name", customerName)
-    .maybeSingle();
+  if (!billNo || !customerName) {
+    return NextResponse.json({ error: "Bill Number and Customer Name are required." }, { status: 400 });
+  }
+
+  // ✅ --- START OF FIX ---
+  // If billDate is provided, use it. Otherwise, default to the current time.
+  // This ensures the timestamp is consistent with the selected date on the form.
+  const transactionTimestamp = billDate ? new Date(billDate).toISOString() : new Date().toISOString();
+  // ✅ --- END OF FIX ---
+
+  // 1. Find or create the customer
+  let { data: customer, error: customerError } = await supabase.from("customers").select("id").eq("name", customerName).maybeSingle();
 
   if (customerError) return NextResponse.json({ error: `Customer lookup failed: ${customerError.message}` }, { status: 500 });
 
   if (!customer) {
-    const { data: newCust, error: insertErr } = await supabase
-      .from("customers")
-      .insert({ name: customerName, opening_balance: openingBalance ?? 0 })
-      .select("id")
-      .single();
+    const { data: newCust, error: insertErr } = await supabase.from("customers").insert({ name: customerName }).select("id").single();
     if (insertErr) return NextResponse.json({ error: `Failed to create customer: ${insertErr.message}` }, { status: 500 });
     customer = newCust;
   }
 
-  // 2. Prepare stock_moves records for each item (No changes here)
+  // 2. Insert sale items (stock_moves)
   const stockMovesToInsert: StockMove[] = rows
-    .filter((row: any) => row.product_id && row.qty > 0)
+    .filter((row: any) => row.product_id && row.qty > 0 && row.rate > 0)
     .map((row: any) => ({
-      ts: new Date().toISOString(),
+      ts: transactionTimestamp, // ✅ Use the corrected timestamp
       kind: "sale",
       customer_id: customer!.id,
       bill_no: billNo,
@@ -49,38 +51,43 @@ export async function POST(req: Request) {
     if (smError) return NextResponse.json({ error: `Failed to save sale items: ${smError.message}` }, { status: 500 });
   }
 
-  // ✅ 3. DYNAMICALLY record the payment based on the "Recipient" dropdown
-  if (payment && payment.amount > 0) {
-    let paymentToInsert: Payment;
+  // 3. Prepare all payment and payout records
+  const paymentsToInsert: Payment[] = [];
+  const totalCustomerPayment = (customerPayment.advance || 0) + (customerPayment.paidNow || 0);
 
-    if (payment.recipientType === 'customer') {
-      paymentToInsert = {
-        ts: new Date().toISOString(),
-        customer_id: customer.id, // Link to the customer
-        party_type: 'customer',
-        direction: 'in', // Money comes IN from the customer
-        amount: payment.amount,
-        method: payment.method.toLowerCase(),
-        bill_no: billNo,
-      };
-    } else if (payment.recipientType === 'others') {
-      paymentToInsert = {
-        ts: new Date().toISOString(),
-        other_name: payment.otherName, // Save the recipient's name (e.g., Vikas)
-        party_type: 'others',
-        direction: 'out', // Money goes OUT to the third party
-        amount: payment.amount,
-        method: payment.method.toLowerCase(),
-        bill_no: billNo,
-      };
-    } else {
-      // You can add logic for 'supplier' or other types here if needed
-      return NextResponse.json({ error: "Unsupported recipient type" }, { status: 400 });
-    }
-
-    const { error: payError } = await supabase.from("payments").insert(paymentToInsert);
-    if (payError) return NextResponse.json({ error: `Sale saved, but payment failed: ${payError.message}` }, { status: 500 });
+  if (totalCustomerPayment > 0) {
+    paymentsToInsert.push({
+      ts: transactionTimestamp, // ✅ Use the corrected timestamp
+      customer_id: customer.id,
+      party_type: 'customer',
+      direction: 'in',
+      amount: totalCustomerPayment,
+      method: customerPayment.method.toLowerCase(),
+      bill_no: billNo,
+    });
   }
 
-  return NextResponse.json({ success: true, message: "Sale recorded successfully." });
+  if (payouts && payouts.length > 0) {
+    const validPayouts = payouts.filter((p: any) => p.amount > 0 && p.recipientName.trim());
+    for (const payout of validPayouts) {
+      paymentsToInsert.push({
+        ts: transactionTimestamp, // ✅ Use the corrected timestamp
+        other_name: payout.recipientName,
+        party_type: 'others',
+        direction: 'out',
+        amount: payout.amount,
+        method: payout.method.toLowerCase(),
+        bill_no: billNo,
+      });
+    }
+  }
+
+  // 4. Insert all payment/payout records
+  if (paymentsToInsert.length > 0) {
+    const { error: payError } = await supabase.from("payments").insert(paymentsToInsert);
+    if (payError) return NextResponse.json({ error: `Sale items saved, but payments failed: ${payError.message}` }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, message: "Sale and all associated payments recorded successfully." });
 }
+

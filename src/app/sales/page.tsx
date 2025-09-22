@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 
-// ✅ Debounce Hook
+// --- Reusable Helper Hooks & Components ---
+
 function useDebounce(value: string, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -12,36 +13,40 @@ function useDebounce(value: string, delay: number) {
   return debouncedValue;
 }
 
-// ✅ Product Input Component (Autocomplete)
-function ProductInput({
+function AutocompleteInput({
   value,
+  onChange,
   onSelect,
+  fetchSuggestions,
+  placeholder,
 }: {
   value: string;
-  onSelect: (p: any) => void;
+  onChange: (newValue: string) => void;
+  onSelect: (suggestion: any) => void;
+  fetchSuggestions: (query: string) => Promise<any[]>;
+  placeholder?: string;
 }) {
-  const [query, setQuery] = useState(value);
   const [results, setResults] = useState<any[]>([]);
   const [show, setShow] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-
-  const debouncedQuery = useDebounce(query, 300);
+  const debouncedQuery = useDebounce(value, 300);
 
   useEffect(() => {
-    async function searchProducts() {
-      if (debouncedQuery.length < 2) {
+    async function getSuggestions() {
+      if (debouncedQuery.length < 1) {
         setResults([]);
         setShow(false);
         return;
       }
-      const res = await fetch(`/api/products?q=${encodeURIComponent(debouncedQuery)}`);
-      const data = await res.json();
+      const data = await fetchSuggestions(debouncedQuery);
       setResults(data);
-      setShow(true);
+      setShow(data.length > 0);
       setHighlighted(0);
     }
-    searchProducts();
-  }, [debouncedQuery]);
+    if (debouncedQuery) {
+        getSuggestions();
+    }
+  }, [debouncedQuery, fetchSuggestions]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!show || results.length === 0) return;
@@ -56,7 +61,6 @@ function ProductInput({
       const selected = results[highlighted];
       if (selected) {
         onSelect(selected);
-        setQuery(selected.name);
         setShow(false);
       }
     } else if (e.key === "Escape") {
@@ -65,32 +69,26 @@ function ProductInput({
   }
 
   return (
-    <div className="relative w-full">
+    <div style={{ position: 'relative', width: '100%' }}>
       <input
-        className="form-input w-full"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onFocus={() => query.length >= 2 && setShow(true)}
+        className="form-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => value.length >= 1 && results.length > 0 && setShow(true)}
         onBlur={() => setTimeout(() => setShow(false), 200)}
         onKeyDown={handleKeyDown}
         autoComplete="off"
+        placeholder={placeholder}
       />
-      {show && results.length > 0 && (
-        <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-          {results.map((p, idx) => (
+      {show && (
+        <div className="autocomplete-dropdown">
+          {results.map((r, idx) => (
             <div
-              key={p.id}
-              className={`flex justify-between items-center px-3 py-2 cursor-pointer text-sm ${
-                highlighted === idx ? "bg-blue-600 text-white" : "hover:bg-gray-100"
-              }`}
-              onMouseDown={() => {
-                onSelect(p);
-                setQuery(p.name);
-                setShow(false);
-              }}
+              key={r.id || r.name}
+              className={`autocomplete-item ${highlighted === idx ? 'highlighted' : ''}`}
+              onMouseDown={() => { onSelect(r); setShow(false); }}
             >
-              <span>{p.name}</span>
-              {p.size && <span className="text-gray-500 text-xs ml-2">({p.size})</span>}
+              <span>{r.name}</span>
             </div>
           ))}
         </div>
@@ -99,85 +97,81 @@ function ProductInput({
   );
 }
 
-// --------------------
-// ✅ Main SalesPage
-// --------------------
-type RecipientType = "customer" | "supplier" | "others";
 
+// --- Main SalesPage Component ---
 export default function SalesPage() {
   const [rows, setRows] = useState([
-    { product_id: null, product: "", material: "", size: "", qty: 0, rate: 0 },
+    { product_id: null, product: "", material: "", size: "", unit: "", qty: '1', rate: '0' },
   ]);
   const [billNo, setBillNo] = useState("");
-  const [billDate, setBillDate] = useState("");
+  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [customerName, setCustomerName] = useState("");
-  const [advance, setAdvance] = useState(0);
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [customerPayment, setCustomerPayment] = useState({ advance: '0', paidNow: '0', method: "Cash" });
+  const [payouts, setPayouts] = useState([{ recipientName: "", amount: '0', method: "Cash" }]);
 
-  const [payment, setPayment] = useState({
-    method: "Cash",
-    recipientType: "customer" as RecipientType,
-    recipientId: "",
-    otherName: "",
-    amount: 0,
-  });
+  const subtotal = rows.reduce((sum, r) => sum + ((parseFloat(r.qty) || 0) * (parseFloat(r.rate) || 0)), 0);
+  const totalReceived = (parseFloat(customerPayment.advance) || 0) + (parseFloat(customerPayment.paidNow) || 0);
+  const totalPayouts = payouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const balanceDue = subtotal - totalReceived;
 
-  const subtotal = rows.reduce((sum, r) => sum + r.qty * r.rate, 0);
-  const totalPaid = advance + payment.amount;
-  const balance = subtotal - totalPaid - openingBalance;
-
-  function addRow() {
-    setRows([...rows, { product_id: null, product: "", material: "", size: "", qty: 0, rate: 0 }]);
-  }
-
-  function updateRow(index: number, field: string, value: any) {
+  const addRow = () => setRows([...rows, { product_id: null, product: "", material: "", size: "", unit: "", qty: '1', rate: '0' }]);
+  const updateRow = (index: number, field: string, value: any) => {
     const updated = [...rows];
     (updated[index] as any)[field] = value;
     setRows(updated);
-  }
+  };
+  const removeRow = (index: number) => setRows(rows.filter((_, i) => i !== index));
+  
+  const updatePayout = (index: number, field: string, value: any) => {
+    const updated = [...payouts];
+    (updated[index] as any)[field] = value;
+    setPayouts(updated);
+  };
+  const addPayout = () => setPayouts([...payouts, { recipientName: "", amount: '0', method: "Cash" }]);
+  const removePayout = (index: number) => setPayouts(payouts.filter((_, i) => i !== index));
 
-  function removeRow(index: number) {
-    setRows(rows.filter((_, i) => i !== index));
-  }
+  // --- API Fetcher Functions for Autocomplete ---
+  const fetchCustomers = async (query: string) => {
+    const res = await fetch(`/api/customers/search?q=${encodeURIComponent(query)}`);
+    return res.ok ? res.json() : [];
+  };
+  const fetchProducts = async (query: string) => {
+    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}`);
+    return res.ok ? res.json() : [];
+  };
+  const fetchRecipients = async (query: string) => {
+    const res = await fetch(`/api/recipients/search?q=${encodeURIComponent(query)}`);
+    return res.ok ? res.json() : [];
+  };
 
   async function saveSale() {
-    if (payment.amount > advance + payment.amount) {
-      alert("❌ Payment amount seems incorrect.");
+    if (!customerName.trim() || !billNo.trim()) {
+      alert("Please enter a Customer Name and Bill Number.");
+      return;
+    }
+    if (totalPayouts > totalReceived) {
+      alert(`Error: Total payouts (₹${totalPayouts.toLocaleString("en-IN")}) cannot exceed the total amount received from the customer (₹${totalReceived.toLocaleString("en-IN")}).`);
       return;
     }
 
     const payload = {
-      billNo,
-      billDate,
-      customerName,
-      openingBalance,
-      advance,
-      rows,
-      payment,
+        billNo,
+        billDate,
+        customerName,
+        rows: rows.map(r => ({ ...r, qty: parseFloat(r.qty) || 0, rate: parseFloat(r.rate) || 0 })),
+        customerPayment: { ...customerPayment, advance: parseFloat(customerPayment.advance) || 0, paidNow: parseFloat(customerPayment.paidNow) || 0 },
+        payouts: payouts.map(p => ({ ...p, amount: parseFloat(p.amount) || 0 })),
     };
-
+    
     try {
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (res.ok) {
         alert("✅ Sale saved successfully!");
-        setRows([{ product_id: null, product: "", material: "", size: "", qty: 0, rate: 0 }]);
-        setBillNo("");
-        setBillDate("");
-        setCustomerName("");
-        setAdvance(0);
-        setOpeningBalance(0);
-        setPayment({
-          method: "Cash",
-          recipientType: "customer",
-          recipientId: "",
-          otherName: "",
-          amount: 0,
-        });
+        // Reset form logic can be added here
       } else {
         const data = await res.json();
         alert("❌ Error saving sale: " + (data.error || "Unknown error"));
@@ -190,167 +184,129 @@ export default function SalesPage() {
 
   return (
     <div className="page">
-      <h1 className="page-title">Sales Entry — Sale (multiple items)</h1>
+      <div className="page-header"><h1 className="page-title">New Sale</h1></div>
 
-      {/* Bill Info */}
       <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">Bill / Customer Info</h2>
-        </div>
+        <div className="card-header"><h2 className="card-title">Bill & Customer Details</h2></div>
         <div className="card-body form-grid">
           <div>
-            <label className="form-label">Bill / Invoice No</label>
+            <label className="form-label">Bill / Invoice No.</label>
             <input className="form-input" value={billNo} onChange={(e) => setBillNo(e.target.value)} />
           </div>
           <div>
-            <label className="form-label">Customer</label>
-            <input className="form-input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            <label className="form-label">Customer Name</label>
+            <AutocompleteInput
+              value={customerName}
+              onChange={setCustomerName}
+              onSelect={(customer) => setCustomerName(customer.name)}
+              fetchSuggestions={fetchCustomers}
+              placeholder="Search or add new customer..."
+            />
           </div>
           <div>
             <label className="form-label">Bill Date</label>
             <input type="date" className="form-input" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
           </div>
-          <div>
-            <label className="form-label">Opening Balance</label>
-            <input
-              type="number"
-              className="form-input"
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(Number(e.target.value))}
-            />
-          </div>
         </div>
       </div>
 
-      {/* Items */}
       <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">Items</h2>
-        </div>
+        <div className="card-header"><h2 className="card-title">Items</h2></div>
         <div className="card-body">
-          <table className="data-table">
+          <table className="data-table items-table">
             <thead>
               <tr>
-                <th style={{ width: "30%" }}>Product</th>
+                <th style={{width: "20%"}}>Product</th>
                 <th>Material</th>
                 <th>Size</th>
-                <th>Qty</th>
-                <th>Rate</th>
-                <th>Amount</th>
-                <th></th>
+                <th>Unit</th>
+                <th style={{width: "80px"}}>Qty</th>
+                <th style={{width: "100px"}}>Rate</th>
+                <th style={{width: "100px"}}>Amount</th>
+                <th style={{width: "20px"}}></th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <td style={{ position: "relative", zIndex: rows.length - i }}>
-                    <ProductInput
+                  <td>
+                    <AutocompleteInput
                       value={r.product}
-                      onSelect={(p) => {
-                        updateRow(i, "product_id", p.id);
-                        updateRow(i, "product", p.name);
-                        updateRow(i, "material", p.material);
-                        updateRow(i, "size", p.size);
-                        updateRow(i, "rate", p.rate || 0);
+                      onChange={(val) => updateRow(i, "product", val)}
+                      onSelect={(p) => { 
+                        updateRow(i, "product_id", p.id); 
+                        updateRow(i, "product", p.name); 
+                        updateRow(i, "material", p.material || ''); 
+                        updateRow(i, "size", p.size || '');
+                        updateRow(i, "unit", p.unit || '');
+                        updateRow(i, "rate", p.rate?.toString() || '0'); 
                       }}
+                      fetchSuggestions={fetchProducts}
+                      placeholder="Type to search..."
                     />
                   </td>
-                  <td>
-                    <input className="form-input" value={r.material} onChange={(e) => updateRow(i, "material", e.target.value)} />
-                  </td>
-                  <td>
-                    <input className="form-input" value={r.size} onChange={(e) => updateRow(i, "size", e.target.value)} />
-                  </td>
-                  <td>
-                    <input type="number" className="form-input" value={r.qty} onChange={(e) => updateRow(i, "qty", Number(e.target.value))} />
-                  </td>
-                  <td>
-                    <input type="number" className="form-input" value={r.rate} onChange={(e) => updateRow(i, "rate", Number(e.target.value))} />
-                  </td>
-                  <td className="font-semibold">₹{(r.qty * r.rate).toLocaleString("en-IN")}</td>
-                  <td>
-                    <button className="btn btn-danger" onClick={() => removeRow(i)}>Delete</button>
-                  </td>
+                  <td><input className="form-input" value={r.material} onChange={(e) => updateRow(i, "material", e.target.value)} /></td>
+                  <td><input className="form-input" value={r.size} onChange={(e) => updateRow(i, "size", e.target.value)} /></td>
+                  <td><input className="form-input" value={r.unit} onChange={(e) => updateRow(i, "unit", e.target.value)} /></td>
+                  <td><input type="number" className="form-input" value={r.qty} onChange={(e) => updateRow(i, "qty", e.target.value)} /></td>
+                  <td><input type="number" className="form-input" value={r.rate} onChange={(e) => updateRow(i, "rate", e.target.value)} /></td>
+                  <td className="amount-cell">₹{((parseFloat(r.qty) || 0) * (parseFloat(r.rate) || 0)).toLocaleString("en-IN")}</td>
+                  <td><button className="btn btn-danger" onClick={() => removeRow(i)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                  </button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <button className="btn btn-primary mt-3" onClick={addRow}>+ Add Row</button>
+          <button className="btn btn-secondary" style={{marginTop: '16px'}} onClick={addRow}>+ Add Row</button>
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="card">
-        <div className="card-header"><h2 className="card-title">Summary</h2></div>
-        <div className="card-body">
-          <div className="summary-container">
-            <div className="summary-row">
-              <span className="summary-label">Subtotal</span>
-              <span className="summary-value">₹{subtotal.toLocaleString("en-IN")}</span>
-            </div>
-            <div className="summary-row">
-              <label className="summary-label">Advance Payment</label>
-              <input type="number" className="form-input" value={advance} onChange={(e) => setAdvance(Number(e.target.value))} />
-            </div>
-            <div className="summary-row">
-              <span className="summary-label">Amount Paid Now</span>
-              <span className="summary-value">₹{payment.amount.toLocaleString("en-IN")}</span>
-            </div>
-            <div className="summary-row summary-total-row">
-              <span className="summary-label">Balance Due</span>
-              <span className={`summary-value ${balance < 0 ? "text-green-600" : "text-red-600"}`}>
-                ₹{balance.toLocaleString("en-IN")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment */}
-      <div className="card">
-        <div className="card-header"><h2 className="card-title">💰 Record Payment</h2></div>
-        <div className="card-body">
-          <div className="payment-grid">
-            <div>
-              <label className="form-label">Method</label>
-              <select className="form-select" value={payment.method} onChange={(e) => setPayment({ ...payment, method: e.target.value })}>
-                <option>Cash</option>
-                <option>UPI</option>
-                <option>Cheque</option>
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Amount Paid Now</label>
-              <input
-                type="number"
-                className="form-input"
-                value={payment.amount}
-                onChange={(e) => setPayment({ ...payment, amount: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="form-label">Recipient</label>
-              <select
-                className="form-select"
-                value={payment.recipientType}
-                onChange={(e) => setPayment({ ...payment, recipientType: e.target.value as RecipientType })}
-              >
-                <option value="customer">Customer</option>
-                <option value="supplier">Supplier</option>
-                <option value="others">Others</option>
-              </select>
-            </div>
-            {payment.recipientType === "others" && (
-              <div>
-                <label className="form-label">Other Name</label>
-                <input className="form-input" value={payment.otherName} onChange={(e) => setPayment({ ...payment, otherName: e.target.value })} />
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="card">
+            <div className="card-header"><h2 className="card-title">💰 Customer Payment & Summary</h2></div>
+            <div className="card-body">
+              <div className="summary-container">
+                  <div className="summary-row"><span className="summary-label">Subtotal</span><span className="summary-value">₹{subtotal.toLocaleString("en-IN")}</span></div>
+                  <div className="summary-row"><label className="summary-label">Advance Payment</label><input type="number" className="form-input summary-input" value={customerPayment.advance} onChange={(e) => setCustomerPayment({...customerPayment, advance: e.target.value})} /></div>
+                  <div className="summary-row"><label className="summary-label">Amount Paid Now</label><input type="number" className="form-input summary-input" value={customerPayment.paidNow} onChange={(e) => setCustomerPayment({...customerPayment, paidNow: e.target.value})} /></div>
+                  <div className="summary-row"><label className="summary-label">Payment Method</label><select className="form-select summary-input" value={customerPayment.method} onChange={(e) => setCustomerPayment({...customerPayment, method: e.target.value})}><option>Cash</option><option>UPI</option><option>Cheque</option></select></div>
+                  <hr className="summary-divider"/>
+                  <div className="summary-total-row"><span className="summary-label">Balance Due</span><span className={`summary-value ${balanceDue <= 0 ? 'text-green' : 'text-red'}`}>₹{balanceDue.toLocaleString("en-IN")}</span></div>
               </div>
-            )}
+            </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header"><h2 className="card-title">💸 Record Payout(s) to Others</h2></div>
+          <div className="card-body">
+            <div className="payout-container">
+              {payouts.map((p, i) => (
+                <div key={i} className="payout-row">
+                  <AutocompleteInput
+                    value={p.recipientName}
+                    onChange={(val) => updatePayout(i, "recipientName", val)}
+                    onSelect={(recipient) => updatePayout(i, "recipientName", recipient.name)}
+                    fetchSuggestions={fetchRecipients}
+                    placeholder="Recipient Name (e.g., Vikas)"
+                  />
+                  <input type="number" className="form-input" placeholder="Amount" value={p.amount} onChange={(e) => updatePayout(i, "amount", e.target.value)} />
+                  <button className="btn btn-danger" onClick={() => removePayout(i)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-secondary" style={{marginTop: '16px'}} onClick={addPayout}>+ Add Payout</button>
+            <div className="payout-summary">
+              <span>Total Received: <span className="text-green">₹{totalReceived.toLocaleString("en-IN")}</span></span>
+              <span>Total Payouts: <span className="text-red">₹{totalPayouts.toLocaleString("en-IN")}</span></span>
+            </div>
           </div>
         </div>
       </div>
 
-      <button className="btn btn-success btn-lg mt-6" onClick={saveSale}>Save Sale</button>
+      <button className="btn btn-success btn-lg" onClick={saveSale}>Save Sale</button>
     </div>
   );
 }

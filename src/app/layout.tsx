@@ -34,6 +34,10 @@ export default function RootLayout({
             <SidebarNavItem href="/sales" icon="sales">
               Sales
             </SidebarNavItem>
+            <SidebarNavItem href="/advances" icon="advances">
+              Advances
+            </SidebarNavItem>
+            
           </nav>
         </aside>
 
