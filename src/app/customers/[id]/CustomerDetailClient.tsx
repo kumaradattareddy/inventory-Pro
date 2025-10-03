@@ -1,39 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../../lib/supabase/client"; 
+import { createClient } from "../../../lib/supabase/client";
 
-// --- Type Definitions ---
-type Customer = {
-  id: number;
-  name: string;
-  opening_balance: number;
-};
-
-type Transaction = {
+/* Types */
+type Customer = { id: number; name: string; opening_balance: number };
+type LedgerRow = {
   bill_no: string | null;
+  customer_id: number | null;
   date: string;
-  type: "Sale" | "Payment" | "Payout";
+  type: "Sale" | "Payment" | "Payout" | "Charge" | "Discount" | "Executive";
   details: string;
-  amount: number;
-  running_balance?: number;
+  amount: number; // from view: Payment & Discount negative, Sale/Charge positive
 };
-
-type GroupedTransactions = {
-  [bill_no: string]: Transaction[];
-};
-
+type Transaction = LedgerRow & { running_balance?: number };
+type Grouped = Record<string, Transaction[]>;
 type BillGroup = {
   billNo: string;
+  execs: string[];
   items: Transaction[];
-  summary: {
-    totalSale: number;
-    totalPaid: number;
-    billBalance: number;
-  };
+  summary: { totalSaleAndCharges: number; totalPaid: number; billBalance: number };
 };
 
-// --- Main Component ---
 export default function CustomerDetailClient({ id }: { id: string }) {
   const supabase = createClient();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -42,74 +30,72 @@ export default function CustomerDetailClient({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
+    async function run() {
       setLoading(true);
       const customerId = Number(id);
 
-      // 1. Fetch basic customer details (for name and opening balance)
+      // 1) customer
       const { data: cust, error: custErr } = await supabase
         .from("customers")
         .select("id, name, opening_balance")
         .eq("id", customerId)
         .single();
-      
-      if (custErr) console.error("Customer fetch error:", custErr);
-      else setCustomer(cust);
+      if (custErr) { console.error(custErr); setLoading(false); return; }
+      setCustomer(cust);
 
-      // 2. Fetch the customer's CURRENT total balance from the totals view
-      const { data: total, error: totalErr } = await supabase
-        .from("customer_totals")
-        .select("balance")
-        .eq("id", customerId)
-        .single();
-      
-      if (totalErr) console.error("Customer total balance fetch error:", totalErr);
-      else setCurrentBalance(total.balance);
+      // 2) full ledger rows (already signed)
+      const { data, error: ledErr } = await supabase
+        .from("bill_transaction_ledger")
+        .select("*")
+        .eq("customer_id", customerId)
+        .order("date", { ascending: true });
+      if (ledErr) { console.error(ledErr); setLoading(false); return; }
 
-      if (cust) {
-        // 3. Fetch ALL transactions for this customer directly from the ledger
-        const { data, error: txnErr } = await supabase
-          .from("bill_transaction_ledger")
-          .select("*") 
-          .eq('customer_id', customerId) // Find all transactions for this customer
-          .order("date", { ascending: true });
+      const rows = (data ?? []) as LedgerRow[];
 
-        if (txnErr) {
-          console.error("Transactions fetch error:", txnErr);
-        } else if (data) {
-          const txns = data as Transaction[]; 
-          
-          let runningTotal = cust.opening_balance;
-          const transactionsWithBalance = txns.map(t => {
-            if (t.type === 'Sale' || t.type === 'Payment') {
-              runningTotal += t.amount;
-            }
-            return { ...t, running_balance: runningTotal };
-          });
+      // running balance: opening + sum(amount)
+      let running = cust.opening_balance ?? 0;
+      const withRun: Transaction[] = rows.map((r) => {
+        running += r.amount;
+        return { ...r, running_balance: running };
+      });
 
-          // Group transactions by bill_no (standalone advances will go into "No Bill")
-          const grouped = transactionsWithBalance.reduce((acc, txn) => {
-            const key = txn.bill_no || "No Bill";
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(txn);
-            return acc;
-          }, {} as GroupedTransactions);
-          
-          const finalBillGroups: BillGroup[] = Object.entries(grouped).map(([billNo, items]) => {
-            const totalSale = items.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0);
-            const totalPaid = items.filter(t => t.type === 'Payment').reduce((sum, t) => sum - t.amount, 0);
-            return {
-              billNo, items, summary: { totalSale, totalPaid, billBalance: totalSale - totalPaid }
-            };
-          });
-          
-          finalBillGroups.sort((a, b) => new Date(a.items[0].date).getTime() - new Date(b.items[0].date).getTime());
-          setBillGroups(finalBillGroups);
-        }
-      }
+      // also reflect this in the header "Current Balance"
+      const lastRunning = withRun.length > 0 ? withRun[withRun.length - 1].running_balance! : (cust.opening_balance ?? 0);
+      setCurrentBalance(lastRunning);
+
+      // group by bill; collect executives; drop executive rows from items
+      const grouped: Grouped = withRun.reduce((acc, t) => {
+        const key = t.bill_no ?? "No Bill";
+        (acc[key] ||= []).push(t);
+        return acc;
+      }, {} as Grouped);
+
+      const groups: BillGroup[] = Object.entries(grouped).map(([billNo, itemsRaw]) => {
+        const execs = Array.from(new Set(itemsRaw.filter(i => i.type === "Executive").map(i => i.details).filter(Boolean)));
+        const items = itemsRaw.filter(i => i.type !== "Executive");
+
+        const totalSaleAndCharges = items
+          .filter(i => i.type === "Sale" || i.type === "Charge" || i.type === "Discount")
+          .reduce((s, i) => s + i.amount, 0);
+
+        const totalPaid = items
+          .filter(i => i.type === "Payment")
+          .reduce((s, i) => s + Math.abs(i.amount), 0);
+
+        const billBalance = totalSaleAndCharges - totalPaid;
+
+        return { billNo, execs, items, summary: { totalSaleAndCharges, totalPaid, billBalance } };
+      });
+
+      groups.sort(
+        (a, b) => new Date(a.items[0]?.date || 0).getTime() - new Date(b.items[0]?.date || 0).getTime()
+      );
+
+      setBillGroups(groups);
       setLoading(false);
     }
-    fetchData();
+    run();
   }, [id, supabase]);
 
   if (loading) return <div className="p-4">Loading...</div>;
@@ -122,72 +108,94 @@ export default function CustomerDetailClient({ id }: { id: string }) {
         <div className="page-header-balances">
           <div className="balance-item">
             <div className="label">Opening Balance</div>
-            <div className="value">₹{customer.opening_balance.toLocaleString("en-IN")}</div>
+            <div className="value">₹{(customer.opening_balance ?? 0).toLocaleString("en-IN")}</div>
           </div>
           <div className="balance-item">
             <div className="label">Current Balance</div>
-            <div className={`value ${currentBalance !== null && currentBalance > 0 ? 'is-due' : ''}`}>
-              {currentBalance !== null ? `₹${currentBalance.toLocaleString("en-IN")}` : '...'}
+            <div className={`value ${currentBalance !== null && currentBalance > 0 ? "is-due" : ""}`}>
+              {currentBalance !== null ? `₹${currentBalance.toLocaleString("en-IN")}` : "…"}
             </div>
           </div>
         </div>
       </div>
 
       <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">Transaction History</h2>
-        </div>
+        <div className="card-header"><h2 className="card-title">Transaction History</h2></div>
         <div className="card-body">
           {billGroups.length === 0 ? (
             <div className="empty">No transactions found.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {billGroups.map(({ billNo, items, summary }) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {billGroups.map(({ billNo, items, summary, execs }) => (
                 <div key={billNo} className="bill-group">
                   <div className="bill-header">
                     <div className="bill-no">
-                      {billNo === 'No Bill' ? 'Standalone Transactions' : `Bill No: ${billNo}`}
+                      {billNo === "No Bill" ? "Standalone Transactions" : `Bill No: ${billNo}`}
                     </div>
-                    {billNo !== 'No Bill' && (
-                        <div className="bill-summary">
+
+                    {/* Executive badges (highlighted) */}
+                    {execs.length > 0 && billNo !== "No Bill" && (
+                      <div className="exec-wrap">
+                        <span className="exec-label">EXECUTIVE</span>
+                        <div className="exec-badges">
+                          {execs.map((name) => (
+                            <span key={name} className="exec-badge">
+                              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+                                <path fill="currentColor" d="M12 12a5 5 0 1 0-5-5a5 5 0 0 0 5 5Zm0 2c-4.003 0-7 2.239-7 5v1h14v-1c0-2.761-2.997-5-7-5Z"/>
+                              </svg>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {billNo !== "No Bill" && (
+                      <div className="bill-summary">
                         <div className="summary-item">
-                            <span>Total Sale: </span><span className="value">₹{summary.totalSale.toLocaleString("en-IN")}</span>
+                          <span>Total Sale:</span>
+                          <span className="value">₹{summary.totalSaleAndCharges.toLocaleString("en-IN")}</span>
                         </div>
                         <div className="summary-item">
-                            <span>Amount Paid: </span><span className="value positive">₹{summary.totalPaid.toLocaleString("en-IN")}</span>
+                          <span>Amount Paid:</span>
+                          <span className="value positive">₹{summary.totalPaid.toLocaleString("en-IN")}</span>
                         </div>
                         <div className="summary-item">
-                            <span>Bill Balance: </span><span className="value negative">₹{summary.billBalance.toLocaleString("en-IN")}</span>
+                          <span>Bill Balance:</span>
+                          <span className="value negative">₹{summary.billBalance.toLocaleString("en-IN")}</span>
                         </div>
-                        </div>
+                      </div>
                     )}
                   </div>
-                  
+
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th>Date</th>
                         <th>Type</th>
                         <th>Details</th>
-                        <th style={{ textAlign: 'right' }}>Amount</th>
-                        <th style={{ textAlign: 'right' }}>Running Balance</th>
+                        <th style={{ textAlign: "right" }}>Amount</th>
+                        <th style={{ textAlign: "right" }}>Running Balance</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((t, index) => (
-                        <tr key={index}>
-                          <td>{new Date(t.date).toLocaleDateString("en-IN", { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
-                          <td><span className={`type-badge ${t.type.toLowerCase()}`}>{t.type}</span></td>
-                          <td>{t.details}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 500 }} className={t.type === 'Payment' ? 'credit' : (t.type === 'Payout' ? 'debit' : '')}>
-                            {t.type === 'Payment' ? '-' : '+'}
-                            ₹{Math.abs(t.amount).toLocaleString("en-IN")}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: '600' }}>
-                            ₹{t.running_balance?.toLocaleString("en-IN")}
-                          </td>
-                        </tr>
-                      ))}
+                      {items.map((t, i) => {
+                        const signed = t.amount; // already signed from view
+                        const sign = signed < 0 ? "−" : "+";
+                        return (
+                          <tr key={i}>
+                            <td>{new Date(t.date).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</td>
+                            <td><span className={`type-badge ${t.type.toLowerCase()}`}>{t.type}</span></td>
+                            <td>{t.details}</td>
+                            <td style={{ textAlign: "right", fontWeight: 500 }} className={signed < 0 ? "credit" : ""}>
+                              {sign}₹{Math.abs(signed).toLocaleString("en-IN")}
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 600 }}>
+                              ₹{(t.running_balance ?? 0).toLocaleString("en-IN")}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -196,6 +204,18 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      {/* Styles for the executive badges */}
+      <style jsx>{`
+        .exec-wrap{display:flex;align-items:center;gap:.75rem;margin-top:.25rem}
+        .exec-label{font-size:.68rem;letter-spacing:.12em;font-weight:700;color:#6b7280;text-transform:uppercase;white-space:nowrap}
+        .exec-badges{display:flex;flex-wrap:wrap;gap:.5rem}
+        .exec-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .6rem;border-radius:9999px;font-weight:700;font-size:.8rem;color:#0b4a2f;background:linear-gradient(180deg,#C7F9CC,#A7F3D0);border:1px solid #8de1b8;box-shadow:0 1px 0 rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6)}
+        @media (prefers-color-scheme: dark){
+          .exec-label{color:#9ca3af}
+          .exec-badge{color:#052e1f;background:linear-gradient(180deg,#86efac,#34d399);border-color:#22c55e}
+        }
+      `}</style>
     </div>
   );
 }

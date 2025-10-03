@@ -355,3 +355,43 @@ body {
 .autocomplete-item.highlighted {
   background: #f5f7fb;
 }
+.exec-wrap{
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+  margin-top:.25rem;
+}
+.exec-label{
+  font-size:.68rem;
+  letter-spacing:.12em;
+  font-weight:700;
+  color:#6b7280;          /* gray-500 */
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.exec-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+}
+.exec-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  padding:.3rem .6rem;
+  border-radius:9999px;
+  font-weight:700;
+  font-size:.8rem;
+  color:#0b4a2f;          /* deep green text */
+  background:linear-gradient(180deg,#C7F9CC,#A7F3D0);
+  border:1px solid #8de1b8;
+  box-shadow:0 1px 0 rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6);
+}
+@media (prefers-color-scheme: dark){
+  .exec-label{ color:#9ca3af; }
+  .exec-badge{
+    color:#052e1f;
+    background:linear-gradient(180deg,#86efac,#34d399);
+    border-color:#22c55e;
+  }
+}
