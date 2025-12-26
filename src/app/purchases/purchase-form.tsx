@@ -50,9 +50,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
 
   const [materials, setMaterials] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeProductIndex, setActiveProductIndex] = useState<number | null>(
-    null
-  );
+  const [activeProductIndex, setActiveProductIndex] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   /* ================= INIT ================= */
@@ -61,7 +59,6 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     const { data: supplierData } = await supabase
       .from("suppliers")
       .select("id, name, opening_balance");
-
     setSuppliers(supplierData ?? []);
 
     const { data: materialData } = await supabase.rpc("get_unique_materials");
@@ -83,10 +80,12 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     ]);
 
   const removeRow = (index: number) => {
-    setRows((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+    setRows((prev) =>
+      prev.length === 1 ? prev : prev.filter((_, i) => i !== index)
+    );
   };
 
-  /** 🔥 STRICT-MODE SAFE UPDATE */
+  // ✅ STRICT TS SAFE
   const updateRow = <K extends keyof Row>(
     index: number,
     field: K,
@@ -94,10 +93,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   ) => {
     setRows((prev) => {
       const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
-        [field]: value,
-      };
+      updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
   };
@@ -129,18 +125,12 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   /* ================= SAVE ================= */
 
   const savePurchase = async () => {
-    if (!supplierName.trim()) {
-      alert("Please enter supplier name");
-      return;
-    }
+    if (!supplierName.trim()) return alert("Enter supplier name");
 
     const validRows = rows.filter(
       (r) => r.product && r.qty > 0 && r.price > 0
     );
-    if (validRows.length === 0) {
-      alert("Add at least one valid item");
-      return;
-    }
+    if (validRows.length === 0) return alert("Add at least one valid item");
 
     setIsSaving(true);
 
@@ -201,15 +191,13 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
         });
       }
 
-      alert("Purchase saved successfully ✅");
-      setRows([
-        { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
-      ]);
+      alert("Purchase saved ✅");
+      setRows([{ material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 }]);
       setSupplierName("");
       setBillNo("");
       onSaveSuccess();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (e: any) {
+      alert(e.message);
     } finally {
       setIsSaving(false);
     }
@@ -222,6 +210,40 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   return (
     <div className="card">
       <div className="card-body">
+
+        {/* 🔹 HEADER (RESTORED) */}
+        <div className="form-grid">
+          <div style={{ gridColumn: "span 2" }}>
+            <label>Supplier</label>
+            <input
+              className="form-input"
+              placeholder="Search or create new supplier"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Bill No.</label>
+            <input
+              className="form-input"
+              value={billNo}
+              onChange={(e) => setBillNo(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Bill Date</label>
+            <input
+              type="date"
+              className="form-input"
+              value={billDate}
+              onChange={(e) => setBillDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* 🔹 ITEMS TABLE */}
         <table className="table">
           <thead>
             <tr>
@@ -337,6 +359,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           </tbody>
         </table>
 
+        {/* 🔹 FOOTER */}
         <div className="purchase-footer">
           <button className="btn-secondary" onClick={addRow}>
             + Add Item
@@ -355,6 +378,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
