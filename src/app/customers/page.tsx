@@ -72,7 +72,7 @@ export default function CustomersPage() {
     if (query.trim()) {
       return c.name.toLowerCase().includes(query.toLowerCase());
     }
-    if (onlyDue) return c.balance > 0;
+    if (onlyDue) return c.balance !== 0;
     return true;
   });
 
@@ -101,7 +101,7 @@ export default function CustomersPage() {
           <div
             style={{
               display: "flex",
-              gap: 12,
+              gap: 16,
               alignItems: "center",
               marginBottom: 16,
             }}
