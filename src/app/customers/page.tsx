@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Customer = {
@@ -18,16 +18,16 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
 
   /* =======================
-     Fetch once (fast)
+     Load customers once
   ======================= */
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("customer_totals")
         .select("id, name, balance")
         .order("name");
 
-      if (!error && data) {
+      if (data) {
         setAllCustomers(
           data.map((c: any) => ({
             id: Number(c.id),
@@ -42,41 +42,47 @@ export default function CustomersPage() {
   }, [supabase]);
 
   /* =======================
-     Restore scroll on return
+     Restore search + filter
   ======================= */
   useEffect(() => {
+    const savedQuery = sessionStorage.getItem("customers_query");
+    const savedDue = sessionStorage.getItem("customers_only_due");
+
+    if (savedQuery !== null) setQuery(savedQuery);
+    if (savedDue !== null) setOnlyDue(savedDue === "true");
+  }, []);
+
+  /* =======================
+     Restore scroll (FIXED)
+  ======================= */
+  useLayoutEffect(() => {
     const y = sessionStorage.getItem("customers_scroll");
     if (y) {
-      window.scrollTo(0, Number(y));
-      sessionStorage.removeItem("customers_scroll");
+      requestAnimationFrame(() => {
+        window.scrollTo(0, Number(y));
+        sessionStorage.removeItem("customers_scroll");
+      });
     }
   }, []);
 
   /* =======================
-     Derived list (instant)
+     Derived customers
   ======================= */
   const visibleCustomers = allCustomers.filter((c) => {
-    // Search always wins
     if (query.trim()) {
       return c.name.toLowerCase().includes(query.toLowerCase());
     }
-
-    // Due-only applies only when not searching
-    if (onlyDue) {
-      return c.balance > 0;
-    }
-
+    if (onlyDue) return c.balance > 0;
     return true;
   });
 
   /* =======================
-     Navigate with scroll save
+     View handler
   ======================= */
   function handleView(id: number) {
-    sessionStorage.setItem(
-      "customers_scroll",
-      String(window.scrollY)
-    );
+    sessionStorage.setItem("customers_scroll", String(window.scrollY));
+    sessionStorage.setItem("customers_query", query);
+    sessionStorage.setItem("customers_only_due", String(onlyDue));
     window.location.href = `/customers/${id}`;
   }
 
@@ -84,22 +90,23 @@ export default function CustomersPage() {
 
   return (
     <div className="page">
+      {/* TITLE ABOVE */}
       <div className="page-header">
         <h1 className="page-title">Customers</h1>
       </div>
 
       <div className="card">
         <div className="card-body">
-          {/* Search + Due filter */}
+          {/* SEARCH BAR ABOVE TABLE */}
           <div
             style={{
               display: "flex",
               gap: 12,
               alignItems: "center",
-              marginBottom: 14,
+              marginBottom: 16,
             }}
           >
-            {/* Search box */}
+            {/* Search */}
             <div style={{ position: "relative", flex: 1 }}>
               <svg
                 width="16"
@@ -131,12 +138,6 @@ export default function CustomersPage() {
                   outline: "none",
                   fontSize: 14,
                 }}
-                onFocus={(e) =>
-                  (e.currentTarget.style.borderColor = "#2563eb")
-                }
-                onBlur={(e) =>
-                  (e.currentTarget.style.borderColor = "#d1d5db")
-                }
               />
             </div>
 
@@ -149,7 +150,6 @@ export default function CustomersPage() {
                 fontSize: 14,
                 color: query ? "#9ca3af" : "#111827",
                 cursor: query ? "not-allowed" : "pointer",
-                userSelect: "none",
               }}
             >
               <input
@@ -162,7 +162,7 @@ export default function CustomersPage() {
             </label>
           </div>
 
-          {/* Table */}
+          {/* TABLE */}
           <table className="table">
             <thead>
               <tr>
