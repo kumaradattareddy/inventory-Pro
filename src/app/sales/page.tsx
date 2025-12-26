@@ -257,14 +257,6 @@ export default function SalesPage() {
     setCustomerPayment({ ...initialPayment });
     setPayouts([{ ...initialPayout }]);
 
-    // 2) Remount subtree
-    setFormKey(k => k + 1);
-
-    // 3) Trigger Next.js refresh (safe no-op if not needed)
-    try { router.refresh(); } catch {}
-
-    // 4) Last-resort hard reload to guarantee cleanliness
-    try { setTimeout(() => { if (typeof window !== "undefined") window.location.reload(); }, 0); } catch {}
   };
 
   async function saveSale() {
@@ -327,7 +319,7 @@ export default function SalesPage() {
 
   /* ----------------------------------- UI ---------------------------------- */
   return (
-    <div key={formKey} className="page">{/* remounts after save */}
+    <div className="page">{/* remounts after save */}
       <div className="page-header"><h1 className="page-title">New Sale</h1></div>
 
       {/* Bill & Customer */}
