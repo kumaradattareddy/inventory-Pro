@@ -101,7 +101,7 @@ export default function CustomersPage() {
           <div
             style={{
               display: "flex",
-              gap: 16,
+              gap: 25,
               alignItems: "center",
               marginBottom: 16,
             }}
