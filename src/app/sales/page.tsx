@@ -154,7 +154,11 @@ export default function SalesPage() {
   const [customer, setCustomer] = useState<CustomerLite | null>(null);
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [newCustomerOpeningBalance, setNewCustomerOpeningBalance] = useState("");
+  // --- FIX: customer dropdown race condition ---
+  const selectingCustomerRef = useRef(false);
 
+  // --- FIX: prevent double save ---
+  const [saving, setSaving] = useState(false);
   // Executives
   const [exec1, setExec1] = useState<string>("");
   const [exec1Other, setExec1Other] = useState("");
@@ -226,15 +230,10 @@ export default function SalesPage() {
   };
 
   /* --------------------------- Customer selection -------------------------- */
-  const onCustomerSelect = (c: CustomerLite) => { setCustomerName(c.name); setCustomer(c); setIsNewCustomer(false); };
+  const onCustomerSelect = (c: CustomerLite) => { selectingCustomerRef.current = true; setCustomerName(c.name); setCustomer(c); setIsNewCustomer(false); setTimeout(() => (selectingCustomerRef.current = false), 0); };
   const onCustomerName   = (name: string) => { setCustomerName(name); if (customer && name.toLowerCase() !== customer.name.toLowerCase()) setCustomer(null); };
-  const onCustomerBlur   = async () => {
-    if (customerName && !customer) {
-      const list = await fetchCustomers(customerName);
-      const exact = (list || []).find((c: any) => c.name?.toLowerCase() === customerName.toLowerCase());
-      if (exact) onCustomerSelect(exact); else setIsNewCustomer(true);
-    }
-  };
+  const onCustomerBlur = async () => { if (selectingCustomerRef.current) return; if (customerName && !customer) { const list = await fetchCustomers(customerName); const exact = (list || []).find((c: any) => c.name?.toLowerCase() === customerName.toLowerCase()); exact ? onCustomerSelect(exact) : setIsNewCustomer(true); } };
+
 
   /* ------------------------------ Save & Reset ----------------------------- */
   const hardReset = () => {
@@ -269,6 +268,7 @@ export default function SalesPage() {
   };
 
   async function saveSale() {
+    if (saving) return; setSaving(true); 
     // executives array (0–2 names)
     const execs: string[] = [];
     const e1 = exec1 === OTHER_SENTINEL ? exec1Other.trim() : exec1;
@@ -303,12 +303,15 @@ export default function SalesPage() {
       if (res.ok) {
         alert("✅ Sale saved successfully!");
         hardReset();
+        setSaving(false);
         return;
       }
       const data = await res.json().catch(() => ({}));
       alert("❌ Error: " + (data.error || "Unknown error"));
+      setSaving(false);
     } catch {
       alert("❌ A network error occurred.");
+      setSaving(false);
     }
   }
 
@@ -571,7 +574,7 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <button className="btn btn-success btn-lg" onClick={saveSale}>Save Sale</button>
+      <button className={`btn btn-success btn-lg ${saving ? "opacity-60 cursor-not-allowed" : ""}`} onClick={saveSale} disabled={saving}>{saving ? "Saving..." : "Save Sale"}</button>
     </div>
   );
 }
