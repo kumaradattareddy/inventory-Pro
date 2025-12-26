@@ -38,19 +38,28 @@ type Props = {
 export default function PurchaseForm({ onSaveSuccess }: Props) {
   const supabase = createClient();
 
+  /* ---------- Supplier State ---------- */
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierName, setSupplierName] = useState("");
+  const [filteredSuppliers, setFilteredSuppliers] = useState<Supplier[]>([]);
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
+  /* ---------- Header ---------- */
   const [billNo, setBillNo] = useState("");
   const [billDate, setBillDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
+  /* ---------- Rows ---------- */
   const [rows, setRows] = useState<Row[]>([
     { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
   ]);
 
+  /* ---------- Products ---------- */
   const [materials, setMaterials] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeProductIndex, setActiveProductIndex] = useState<number | null>(null);
+  const [activeProductIndex, setActiveProductIndex] = useState<number | null>(
+    null
+  );
+
   const [isSaving, setIsSaving] = useState(false);
 
   /* ================= INIT ================= */
@@ -59,6 +68,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     const { data: supplierData } = await supabase
       .from("suppliers")
       .select("id, name, opening_balance");
+
     setSuppliers(supplierData ?? []);
 
     const { data: materialData } = await supabase.rpc("get_unique_materials");
@@ -70,6 +80,33 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
+
+  /* ================= SUPPLIER AUTOCOMPLETE ================= */
+
+  const handleSupplierChange = (value: string) => {
+    setSupplierName(value);
+
+    if (!value.trim()) {
+      setShowSupplierDropdown(false);
+      return;
+    }
+
+    const matches = suppliers.filter((s) =>
+      s.name?.toLowerCase().includes(value.toLowerCase())
+    );
+
+    setFilteredSuppliers(matches);
+    setShowSupplierDropdown(true);
+  };
+
+  const selectSupplier = (supplier: Supplier) => {
+    setSupplierName(supplier.name ?? "");
+    setShowSupplierDropdown(false);
+  };
+
+  const handleSupplierBlur = () => {
+    setTimeout(() => setShowSupplierDropdown(false), 150);
+  };
 
   /* ================= ROW HELPERS ================= */
 
@@ -85,7 +122,6 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     );
   };
 
-  // ✅ STRICT TS SAFE
   const updateRow = <K extends keyof Row>(
     index: number,
     field: K,
@@ -98,7 +134,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     });
   };
 
-  /* ================= PRODUCT SEARCH ================= */
+  /* ================= PRODUCT AUTOCOMPLETE ================= */
 
   const searchProducts = async (query: string, index: number) => {
     setActiveProductIndex(index);
@@ -125,12 +161,12 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   /* ================= SAVE ================= */
 
   const savePurchase = async () => {
-    if (!supplierName.trim()) return alert("Enter supplier name");
+    if (!supplierName.trim()) return alert("Enter supplier");
 
     const validRows = rows.filter(
       (r) => r.product && r.qty > 0 && r.price > 0
     );
-    if (validRows.length === 0) return alert("Add at least one valid item");
+    if (validRows.length === 0) return alert("Add valid items");
 
     setIsSaving(true);
 
@@ -192,7 +228,9 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
       }
 
       alert("Purchase saved ✅");
-      setRows([{ material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 }]);
+      setRows([
+        { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
+      ]);
       setSupplierName("");
       setBillNo("");
       onSaveSuccess();
@@ -211,16 +249,31 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     <div className="card">
       <div className="card-body">
 
-        {/* 🔹 HEADER (RESTORED) */}
+        {/* 🔹 HEADER */}
         <div className="form-grid">
-          <div style={{ gridColumn: "span 2" }}>
+          <div style={{ gridColumn: "span 2", position: "relative" }}>
             <label>Supplier</label>
             <input
               className="form-input"
               placeholder="Search or create new supplier"
               value={supplierName}
-              onChange={(e) => setSupplierName(e.target.value)}
+              onChange={(e) => handleSupplierChange(e.target.value)}
+              onBlur={handleSupplierBlur}
             />
+
+            {showSupplierDropdown && filteredSuppliers.length > 0 && (
+              <div className="autocomplete-dropdown">
+                {filteredSuppliers.map((s) => (
+                  <div
+                    key={s.id}
+                    className="autocomplete-item"
+                    onMouseDown={() => selectSupplier(s)}
+                  >
+                    {s.name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
@@ -247,14 +300,14 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
         <table className="table">
           <thead>
             <tr>
-              <th style={{ width: 120 }}>Material</th>
-              <th style={{ width: 120 }}>Size</th>
-              <th style={{ width: "35%" }}>Product</th>
-              <th style={{ width: 100 }}>Unit</th>
-              <th style={{ width: 90 }}>Qty</th>
-              <th style={{ width: 120 }}>Price</th>
-              <th style={{ width: 140, textAlign: "right" }}>Amount</th>
-              <th style={{ width: 40 }} />
+              <th>Material</th>
+              <th>Size</th>
+              <th>Product</th>
+              <th>Unit</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th style={{ textAlign: "right" }}>Amount</th>
+              <th />
             </tr>
           </thead>
 
@@ -295,6 +348,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                       searchProducts(e.target.value, i);
                     }}
                   />
+
                   {activeProductIndex === i && products.length > 0 && (
                     <div className="autocomplete-dropdown">
                       {products.map((p) => (
@@ -342,7 +396,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                   />
                 </td>
 
-                <td style={{ textAlign: "right", fontWeight: 500 }}>
+                <td style={{ textAlign: "right" }}>
                   ₹{(row.qty * row.price).toFixed(2)}
                 </td>
 
