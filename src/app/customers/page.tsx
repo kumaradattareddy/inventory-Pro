@@ -13,63 +13,75 @@ type Customer = {
 export default function CustomersPage() {
   const supabase = createClient();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
   const [onlyDue, setOnlyDue] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  // Initial load (all customers)
+  /* -----------------------
+     Fetch once
+  ------------------------ */
   useEffect(() => {
-    async function fetchAll() {
-      setLoading(true);
+    async function load() {
       const { data, error } = await supabase
         .from("customer_totals")
         .select("id, name, balance")
         .order("name");
 
-      if (error) {
-        console.error(error);
-      } else {
-        setCustomers(
-          (data ?? []).map((c: any) => ({
+      if (!error && data) {
+        setAllCustomers(
+          data.map((c: any) => ({
             id: Number(c.id),
-            name: c.name ?? "",
+            name: c.name,
             balance: Number(c.balance ?? 0),
           }))
         );
       }
       setLoading(false);
     }
-
-    fetchAll();
+    load();
   }, [supabase]);
 
-  // Live search
+  /* -----------------------
+     Derived list (FAST)
+  ------------------------ */
+  const visibleCustomers = allCustomers.filter((c) => {
+    // search always wins
+    if (query.trim()) {
+      return c.name.toLowerCase().includes(query.toLowerCase());
+    }
+
+    // due-only applies only when NOT searching
+    if (onlyDue) {
+      return c.balance > 0;
+    }
+
+    return true;
+  });
+
+  /* -----------------------
+     Save scroll before nav
+  ------------------------ */
+  function handleView(id: number) {
+    sessionStorage.setItem(
+      "customers_scroll",
+      String(window.scrollY)
+    );
+    window.location.href = `/customers/${id}`;
+  }
+
+  /* -----------------------
+     Restore scroll
+  ------------------------ */
   useEffect(() => {
-    if (!query) return;
+    const y = sessionStorage.getItem("customers_scroll");
+    if (y) {
+      window.scrollTo(0, Number(y));
+      sessionStorage.removeItem("customers_scroll");
+    }
+  }, []);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/customers/search?q=${query}`, {
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        setCustomers(data ?? []);
-      } catch (_) {}
-      setLoading(false);
-    }, 250);
-
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [query]);
-
-  const visibleCustomers = customers.filter(
-    (c) => !onlyDue || c.balance > 0
-  );
+  if (loading) return <div className="p-4">Loading...</div>;
 
   return (
     <div className="page">
@@ -79,10 +91,9 @@ export default function CustomersPage() {
 
       <div className="card">
         <div className="card-body">
-          {/* Search + Filter */}
+          {/* Search + Due */}
           <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
             <input
-              type="text"
               className="input"
               placeholder="Search customers..."
               value={query}
@@ -95,55 +106,52 @@ export default function CustomersPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                whiteSpace: "nowrap",
+                opacity: query ? 0.5 : 1,
               }}
             >
               <input
                 type="checkbox"
                 checked={onlyDue}
+                disabled={!!query}
                 onChange={(e) => setOnlyDue(e.target.checked)}
               />
               Due only
             </label>
           </div>
 
-          {loading ? (
-            <div className="p-4">Loading...</div>
-          ) : (
-            <table className="table">
-              <thead>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Balance</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleCustomers.length === 0 ? (
                 <tr>
-                  <th>Name</th>
-                  <th>Balance</th>
-                  <th></th>
+                  <td colSpan={3} className="empty">
+                    No customers found.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {visibleCustomers.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="empty">
-                      No customers found.
+              ) : (
+                visibleCustomers.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.name}</td>
+                    <td>₹{c.balance.toLocaleString("en-IN")}</td>
+                    <td>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleView(c.id)}
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
-                ) : (
-                  visibleCustomers.map((c) => (
-                    <tr key={c.id}>
-                      <td>{c.name}</td>
-                      <td>₹{c.balance.toLocaleString("en-IN")}</td>
-                      <td>
-                        <Link
-                          href={`/customers/${c.id}`}
-                          className="btn btn-sm btn-primary"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
