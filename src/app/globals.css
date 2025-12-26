@@ -395,3 +395,60 @@ body {
     border-color:#22c55e;
   }
 }
+.table td,
+.table th {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.form-input,
+.form-select {
+  height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.form-input,
+.form-select {
+  height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.row-delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-weight: bold;
+}
+
+.purchase-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.purchase-summary {
+  text-align: right;
+}
+
+.purchase-summary .total {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.purchase-summary .total span {
+  font-size: 24px;
+}
+
+/* remove number spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
