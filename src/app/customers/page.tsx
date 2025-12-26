@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Customer = {
@@ -18,9 +17,9 @@ export default function CustomersPage() {
   const [onlyDue, setOnlyDue] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  /* -----------------------
-     Fetch once
-  ------------------------ */
+  /* =======================
+     Fetch once (fast)
+  ======================= */
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase
@@ -42,37 +41,9 @@ export default function CustomersPage() {
     load();
   }, [supabase]);
 
-  /* -----------------------
-     Derived list (FAST)
-  ------------------------ */
-  const visibleCustomers = allCustomers.filter((c) => {
-    // search always wins
-    if (query.trim()) {
-      return c.name.toLowerCase().includes(query.toLowerCase());
-    }
-
-    // due-only applies only when NOT searching
-    if (onlyDue) {
-      return c.balance > 0;
-    }
-
-    return true;
-  });
-
-  /* -----------------------
-     Save scroll before nav
-  ------------------------ */
-  function handleView(id: number) {
-    sessionStorage.setItem(
-      "customers_scroll",
-      String(window.scrollY)
-    );
-    window.location.href = `/customers/${id}`;
-  }
-
-  /* -----------------------
-     Restore scroll
-  ------------------------ */
+  /* =======================
+     Restore scroll on return
+  ======================= */
   useEffect(() => {
     const y = sessionStorage.getItem("customers_scroll");
     if (y) {
@@ -80,6 +51,34 @@ export default function CustomersPage() {
       sessionStorage.removeItem("customers_scroll");
     }
   }, []);
+
+  /* =======================
+     Derived list (instant)
+  ======================= */
+  const visibleCustomers = allCustomers.filter((c) => {
+    // Search always wins
+    if (query.trim()) {
+      return c.name.toLowerCase().includes(query.toLowerCase());
+    }
+
+    // Due-only applies only when not searching
+    if (onlyDue) {
+      return c.balance > 0;
+    }
+
+    return true;
+  });
+
+  /* =======================
+     Navigate with scroll save
+  ======================= */
+  function handleView(id: number) {
+    sessionStorage.setItem(
+      "customers_scroll",
+      String(window.scrollY)
+    );
+    window.location.href = `/customers/${id}`;
+  }
 
   if (loading) return <div className="p-4">Loading...</div>;
 
@@ -91,22 +90,66 @@ export default function CustomersPage() {
 
       <div className="card">
         <div className="card-body">
-          {/* Search + Due */}
-          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-            <input
-              className="input"
-              placeholder="Search customers..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          {/* Search + Due filter */}
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 14,
+            }}
+          >
+            {/* Search box */}
+            <div style={{ position: "relative", flex: 1 }}>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#6b7280",
+                }}
+              >
+                <path
+                  fill="currentColor"
+                  d="M21 20l-5.6-5.6a7 7 0 1 0-1.4 1.4L20 21zM5 10a5 5 0 1 1 5 5a5 5 0 0 1-5-5"
+                />
+              </svg>
 
+              <input
+                placeholder="Search customers…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px 10px 36px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  outline: "none",
+                  fontSize: 14,
+                }}
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor = "#2563eb")
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = "#d1d5db")
+                }
+              />
+            </div>
+
+            {/* Due only */}
             <label
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                opacity: query ? 0.5 : 1,
+                fontSize: 14,
+                color: query ? "#9ca3af" : "#111827",
+                cursor: query ? "not-allowed" : "pointer",
+                userSelect: "none",
               }}
             >
               <input
@@ -119,6 +162,7 @@ export default function CustomersPage() {
             </label>
           </div>
 
+          {/* Table */}
           <table className="table">
             <thead>
               <tr>
