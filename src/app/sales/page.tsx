@@ -230,10 +230,9 @@ export default function SalesPage() {
   };
 
   /* --------------------------- Customer selection -------------------------- */
-  const onCustomerSelect = (c: CustomerLite) => { selectingCustomerRef.current = true; setCustomerName(c.name); setCustomer(c); setIsNewCustomer(false); setTimeout(() => (selectingCustomerRef.current = false), 0); };
+  const onCustomerSelect = (c: CustomerLite) => { selectingCustomerRef.current = true; setCustomerName(c.name); setCustomer(c); setIsNewCustomer(false); };
   const onCustomerName   = (name: string) => { setCustomerName(name); if (customer && name.toLowerCase() !== customer.name.toLowerCase()) setCustomer(null); };
-  const onCustomerBlur = async () => { if (selectingCustomerRef.current) return; if (customerName && !customer) { const list = await fetchCustomers(customerName); const exact = (list || []).find((c: any) => c.name?.toLowerCase() === customerName.toLowerCase()); exact ? onCustomerSelect(exact) : setIsNewCustomer(true); } };
-
+  const onCustomerBlur = async () => { if (selectingCustomerRef.current) { selectingCustomerRef.current = false; return; } if (customerName && !customer) { const list = await fetchCustomers(customerName); const exact = (list || []).find((c: any) => c.name?.toLowerCase() === customerName.toLowerCase()); exact ? onCustomerSelect(exact) : setIsNewCustomer(true); } };
 
   /* ------------------------------ Save & Reset ----------------------------- */
   const hardReset = () => {
