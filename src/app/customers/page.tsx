@@ -12,33 +12,64 @@ type Customer = {
 
 export default function CustomersPage() {
   const supabase = createClient();
+
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [query, setQuery] = useState("");
+  const [onlyDue, setOnlyDue] = useState(true);
   const [loading, setLoading] = useState(true);
 
+  // Initial load (all customers)
   useEffect(() => {
-    async function fetchCustomers() {
+    async function fetchAll() {
+      setLoading(true);
       const { data, error } = await supabase
-        .from("customer_totals") // ✅ use view with balance
+        .from("customer_totals")
         .select("id, name, balance")
         .order("name");
 
       if (error) {
-        console.error("Error fetching customers:", error);
+        console.error(error);
       } else {
         setCustomers(
           (data ?? []).map((c: any) => ({
             id: Number(c.id),
             name: c.name ?? "",
-            balance: c.balance ?? 0,
+            balance: Number(c.balance ?? 0),
           }))
         );
       }
       setLoading(false);
     }
-    fetchCustomers();
+
+    fetchAll();
   }, [supabase]);
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  // Live search
+  useEffect(() => {
+    if (!query) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/customers/search?q=${query}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        setCustomers(data ?? []);
+      } catch (_) {}
+      setLoading(false);
+    }, 250);
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query]);
+
+  const visibleCustomers = customers.filter(
+    (c) => !onlyDue || c.balance > 0
+  );
 
   return (
     <div className="page">
@@ -48,39 +79,71 @@ export default function CustomersPage() {
 
       <div className="card">
         <div className="card-body">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Balance</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.length === 0 ? (
+          {/* Search + Filter */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <input
+              type="text"
+              className="input"
+              placeholder="Search customers..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ flex: 1 }}
+            />
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={onlyDue}
+                onChange={(e) => setOnlyDue(e.target.checked)}
+              />
+              Due only
+            </label>
+          </div>
+
+          {loading ? (
+            <div className="p-4">Loading...</div>
+          ) : (
+            <table className="table">
+              <thead>
                 <tr>
-                  <td colSpan={3} className="empty">
-                    No customers found.
-                  </td>
+                  <th>Name</th>
+                  <th>Balance</th>
+                  <th></th>
                 </tr>
-              ) : (
-                customers.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td>₹{c.balance}</td>
-                    <td>
-                      <Link
-                        href={`/customers/${c.id}`}
-                        className="btn btn-sm btn-primary"
-                      >
-                        View
-                      </Link>
+              </thead>
+              <tbody>
+                {visibleCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="empty">
+                      No customers found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  visibleCustomers.map((c) => (
+                    <tr key={c.id}>
+                      <td>{c.name}</td>
+                      <td>₹{c.balance.toLocaleString("en-IN")}</td>
+                      <td>
+                        <Link
+                          href={`/customers/${c.id}`}
+                          className="btn btn-sm btn-primary"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

@@ -6,41 +6,20 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q")?.trim();
 
-  if (!query) return NextResponse.json([], { status: 200 });
+  if (!query) {
+    return NextResponse.json([], { status: 200 });
+  }
 
-  // Base customers
-  const { data: customers, error: cErr } = await supabase
-    .from("customers")
-    .select("id, name, opening_balance")
+  const { data, error } = await supabase
+    .from("customer_totals")
+    .select("id, name, balance")
     .ilike("name", `%${query}%`)
     .order("name", { ascending: true })
-    .limit(10);
+    .limit(20);
 
-  if (cErr) {
-    return NextResponse.json({ error: cErr.message }, { status: 500 });
-  }
-  if (!customers?.length) return NextResponse.json([], { status: 200 });
-
-  // Merge in balances from view
-  const ids = customers.map((c) => c.id);
-  const { data: totals, error: tErr } = await supabase
-    .from("customer_totals")
-    .select("id, balance")
-    .in("id", ids);
-
-  if (tErr) {
-    return NextResponse.json({ error: tErr.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const map = new Map<number, number>();
-  (totals || []).forEach((t) => map.set(t.id as number, t.balance as number));
-
-  const merged = customers.map((c) => ({
-    id: c.id,
-    name: c.name,
-    opening_balance: c.opening_balance ?? 0,
-    balance: map.get(c.id) ?? null,
-  }));
-
-  return NextResponse.json(merged, { status: 200 });
+  return NextResponse.json(data ?? [], { status: 200 });
 }
