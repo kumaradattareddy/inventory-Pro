@@ -68,7 +68,7 @@ export default async function ProductHistory({
                 {/* DATE */}
                 <td>
                   {m.ts
-                    ? new Date(m.ts).toLocaleString('en-IN')
+                    ? new Date(m.ts).toLocaleDateString('en-IN')
                     : '-'}
                 </td>
 

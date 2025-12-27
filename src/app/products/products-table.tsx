@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { saveScroll } from '@/lib/scroll'
 
@@ -18,19 +18,32 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
   const [rows, setRows] = useState(products)
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [delta, setDelta] = useState<Record<number, number>>({})
   const [savingId, setSavingId] = useState<number | null>(null)
 
+  // ✅ DEBOUNCE SEARCH (fixes lag)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedQuery(query.trim().toLowerCase())
+    }, 200) // fast but smooth
+
+    return () => clearTimeout(t)
+  }, [query])
+
+  // ✅ FILTER ONLY WHEN DEBOUNCED QUERY CHANGES
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return rows
+    if (!debouncedQuery) return rows
+
     return rows.filter((p) =>
-      `${p.name} ${p.size} ${p.supplier_name ?? ''}`.toLowerCase().includes(q)
+      `${p.name} ${p.size} ${p.supplier_name ?? ''}`
+        .toLowerCase()
+        .includes(debouncedQuery)
     )
-  }, [rows, query])
+  }, [rows, debouncedQuery])
 
   const change = (id: number, by: number) => {
-    setDelta((p) => ({ ...p, [id]: (p[id] ?? 0) + by }))
+    setDelta((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }))
   }
 
   const save = async (p: Product) => {
@@ -49,6 +62,7 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
       if (error) throw error
 
+      // optimistic update
       setRows((prev) =>
         prev.map((r) =>
           r.id === p.id
@@ -69,8 +83,8 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
   return (
     <>
-      {/* FULL WIDTH SEARCH (LIKE OLD UI) */}
-      <div style={{ padding: 16 }}>
+      {/* ✅ FULL WIDTH SEARCH BAR (OLD UI STYLE) */}
+      <div style={{ padding: '16px' }}>
         <input
           type="search"
           placeholder="Search products..."
@@ -82,6 +96,7 @@ export default function ProductsTable({ products }: { products: Product[] }) {
             borderRadius: 8,
             border: '1px solid #d0d7de',
             fontSize: 15,
+            outline: 'none',
           }}
         />
       </div>
