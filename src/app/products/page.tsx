@@ -1,38 +1,59 @@
 import { createClient } from '@/lib/supabase/server'
-import ProductsTable from './products-table'
 
-type Product = {
-  id: number
-  name: string
-  size: string
-  unit: string
-  current_stock: number
-  supplier_name: string | null
+type PageProps = {
+  params: Promise<{
+    id: string
+  }>
 }
 
-export default async function ProductsPage() {
+export default async function ProductHistory({ params }: PageProps) {
+  const { id } = await params
+  const productId = Number(id)
+
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('product_stock_live' as any)
-    .select('*')
-    .order('name')
+    .from('stock_moves')
+    .select(`
+      ts,
+      kind,
+      qty,
+      bill_no,
+      suppliers(name),
+      customers(name)
+    `)
+    .eq('product_id', productId)
+    .order('ts', { ascending: false })
 
   if (error) throw new Error(error.message)
 
-  // ✅ SAFE, SINGLE CAST (view-only)
-  const products = (data ?? []) as unknown as Product[]
-
-
   return (
     <div className="card">
-      <div className="card-header">
-        <h2 className="card-title">Products</h2>
-      </div>
+      <h2>Product History</h2>
 
-      <div className="card-body">
-        <ProductsTable products={products} />
-      </div>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Party</th>
+            <th>Bill No</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {data?.map((m, i) => (
+            <tr key={i}>
+              <td>{m.ts ? new Date(m.ts).toLocaleString() : '-'}</td>
+              <td>{m.kind}</td>
+              <td>{m.qty}</td>
+              <td>{m.suppliers?.name || m.customers?.name || '-'}</td>
+              <td>{m.bill_no ?? '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
