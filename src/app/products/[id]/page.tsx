@@ -1,12 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 
 export default async function ProductHistory({
-  params
+  params,
 }: {
   params: { id: string }
 }) {
-  const supabase = await createClient()
   const productId = Number(params.id)
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('stock_moves')
