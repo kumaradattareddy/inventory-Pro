@@ -1,6 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 
+type StockMoveRow = {
+  ts: string | null
+  kind: string | null
+  qty: number | null
+  price_per_unit: number | null
+  bill_no: string | null
+}
+
 export default async function ProductHistory({
   params,
 }: {
@@ -28,11 +36,14 @@ export default async function ProductHistory({
 
   if (error) throw new Error(error.message)
 
+  const rows = (data ?? []) as StockMoveRow[]
+
   return (
     <div className="card" style={{ maxWidth: 900 }}>
-      <BackButton />
-
-      <h2>Product History</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <BackButton />
+        <h2 style={{ margin: 0 }}>Product History</h2>
+      </div>
 
       <table className="table">
         <thead>
@@ -47,23 +58,55 @@ export default async function ProductHistory({
         </thead>
 
         <tbody>
-          {(data ?? []).map((m, i) => {
-            const amount =
-              m.qty && m.price_per_unit
-                ? m.qty * m.price_per_unit
-                : null
+          {rows.map((m, i) => {
+            const qty = m.qty ?? 0
+            const price = m.price_per_unit ?? 0
+            const amount = qty && price ? qty * price : null
 
             return (
               <tr key={i}>
-                <td>{m.ts ? new Date(m.ts).toLocaleString() : '-'}</td>
+                {/* DATE */}
                 <td>
-                  <span className={`badge ${m.kind === 'sale' ? 'red' : 'green'}`}>
-                    {m.kind}
-                  </span>
+                  {m.ts
+                    ? new Date(m.ts).toLocaleString('en-IN')
+                    : '-'}
                 </td>
-                <td>{m.qty}</td>
-                <td>{m.price_per_unit ?? '-'}</td>
-                <td>{amount ?? '-'}</td>
+
+                {/* TYPE */}
+                <td>
+                  {m.kind ? (
+                    <span
+                      className={`badge ${
+                        m.kind === 'sale'
+                          ? 'badge-red'
+                          : 'badge-green'
+                      }`}
+                    >
+                      {m.kind.toUpperCase()}
+                    </span>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+
+                {/* QTY */}
+                <td>{m.qty ?? '-'}</td>
+
+                {/* PRICE */}
+                <td>
+                  {m.price_per_unit
+                    ? `₹${m.price_per_unit.toLocaleString()}`
+                    : '-'}
+                </td>
+
+                {/* AMOUNT */}
+                <td>
+                  {amount
+                    ? `₹${amount.toLocaleString()}`
+                    : '-'}
+                </td>
+
+                {/* BILL NO */}
                 <td>{m.bill_no ?? '-'}</td>
               </tr>
             )

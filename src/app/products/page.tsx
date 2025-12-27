@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import ProductsTable from './products-table'
+import ProductsPageClient from './products-page-client'
 
 type ProductRow = {
   id: number | null
@@ -16,7 +16,7 @@ export default async function ProductsPage() {
   const { data, error } = await supabase
     .from('product_stock_live' as any)
     .select('*')
-    .not('id', 'is', null) // 🔒 avoid NaN → bigint crash
+    .not('id', 'is', null)
     .order('name')
 
   if (error) throw new Error(error.message)
@@ -44,15 +44,5 @@ export default async function ProductsPage() {
       supplier_name: string | null
     }[]
 
-  return (
-    <div className="card">
-      <div className="card-header">
-        <h2 className="card-title">Products</h2>
-      </div>
-
-      <div className="card-body">
-        <ProductsTable products={products} />
-      </div>
-    </div>
-  )
+  return <ProductsPageClient products={products} />
 }

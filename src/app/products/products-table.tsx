@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { saveScroll } from '@/lib/scroll'
 
 type Product = {
   id: number
@@ -21,15 +22,15 @@ export default function ProductsTable({ products }: { products: Product[] }) {
   const [savingId, setSavingId] = useState<number | null>(null)
 
   const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim()
+    const q = query.trim().toLowerCase()
     if (!q) return rows
-    return rows.filter(p =>
+    return rows.filter((p) =>
       `${p.name} ${p.size} ${p.supplier_name ?? ''}`.toLowerCase().includes(q)
     )
   }, [rows, query])
 
   const change = (id: number, by: number) => {
-    setDelta(prev => ({ ...prev, [id]: (prev[id] ?? 0) + by }))
+    setDelta((p) => ({ ...p, [id]: (p[id] ?? 0) + by }))
   }
 
   const save = async (p: Product) => {
@@ -48,16 +49,15 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
       if (error) throw error
 
-      // ✅ update UI without reload
-      setRows(prev =>
-        prev.map(r =>
+      setRows((prev) =>
+        prev.map((r) =>
           r.id === p.id
             ? { ...r, current_stock: r.current_stock + d }
             : r
         )
       )
 
-      setDelta(prev => {
+      setDelta((prev) => {
         const copy = { ...prev }
         delete copy[p.id]
         return copy
@@ -69,13 +69,22 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
   return (
     <>
-      <input
-        className="input"
-        placeholder="Search products..."
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        style={{ marginBottom: 16, maxWidth: 420 }}
-      />
+      {/* FULL WIDTH SEARCH (LIKE OLD UI) */}
+      <div style={{ padding: 16 }}>
+        <input
+          type="search"
+          placeholder="Search products..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 8,
+            border: '1px solid #d0d7de',
+            fontSize: 15,
+          }}
+        />
+      </div>
 
       <table className="table">
         <thead>
@@ -90,7 +99,7 @@ export default function ProductsTable({ products }: { products: Product[] }) {
         </thead>
 
         <tbody>
-          {filtered.map(p => {
+          {filtered.map((p) => {
             const d = delta[p.id] ?? 0
             const preview = p.current_stock + d
 
@@ -106,23 +115,29 @@ export default function ProductsTable({ products }: { products: Product[] }) {
                 <td><span className="badge">{p.unit}</span></td>
                 <td>{p.supplier_name ?? '-'}</td>
 
-                <td style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => change(p.id, -1)} disabled={savingId === p.id}>−</button>
-                  <button onClick={() => change(p.id, 1)} disabled={savingId === p.id}>+</button>
+                <td>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={() => change(p.id, -1)}>−</button>
+                    <button onClick={() => change(p.id, 1)}>+</button>
 
-                  {d !== 0 && (
-                    <button
-                      className="btn-primary"
-                      onClick={() => save(p)}
-                      disabled={savingId === p.id}
+                    {d !== 0 && (
+                      <button
+                        className="btn-primary"
+                        onClick={() => save(p)}
+                        disabled={savingId === p.id}
+                      >
+                        Save
+                      </button>
+                    )}
+
+                    <a
+                      href={`/products/${p.id}`}
+                      onClick={() => saveScroll('products-scroll')}
+                      className="link"
                     >
-                      Save
-                    </button>
-                  )}
-
-                  <a href={`/products/${p.id}`} className="link">
-                    View
-                  </a>
+                      View
+                    </a>
+                  </div>
                 </td>
               </tr>
             )

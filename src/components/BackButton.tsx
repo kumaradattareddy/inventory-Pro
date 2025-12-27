@@ -10,7 +10,6 @@ export default function BackButton() {
       type="button"
       onClick={() => router.back()}
       className="btn-secondary"
-      style={{ marginBottom: 16 }}
     >
       ← Back
     </button>
