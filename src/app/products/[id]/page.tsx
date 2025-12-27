@@ -4,10 +4,19 @@ import BackButton from '@/components/BackButton'
 export default async function ProductHistory({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const productId = Number(params.id)
-  if (!Number.isFinite(productId)) return <p>Invalid product</p>
+  const { id } = await params
+  const productId = Number(id)
+
+  if (!Number.isFinite(productId)) {
+    return (
+      <div style={{ padding: 24 }}>
+        <BackButton />
+        <p>Invalid product</p>
+      </div>
+    )
+  }
 
   const supabase = await createClient()
 
