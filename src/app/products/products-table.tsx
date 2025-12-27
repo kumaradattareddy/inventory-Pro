@@ -15,35 +15,32 @@ type Product = {
 export default function ProductsTable({ products }: { products: Product[] }) {
   const supabase = createClient()
 
+  const [rows, setRows] = useState(products)
   const [query, setQuery] = useState('')
   const [delta, setDelta] = useState<Record<number, number>>({})
   const [savingId, setSavingId] = useState<number | null>(null)
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return products
-    return products.filter((p) =>
+    const q = query.toLowerCase().trim()
+    if (!q) return rows
+    return rows.filter(p =>
       `${p.name} ${p.size} ${p.supplier_name ?? ''}`.toLowerCase().includes(q)
     )
-  }, [products, query])
+  }, [rows, query])
 
   const change = (id: number, by: number) => {
-    if (!Number.isFinite(id)) return
-    setDelta((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }))
+    setDelta(prev => ({ ...prev, [id]: (prev[id] ?? 0) + by }))
   }
 
   const save = async (p: Product) => {
-    const id = Number(p.id)
-    if (!Number.isFinite(id)) return
-
-    const d = delta[id] ?? 0
+    const d = delta[p.id]
     if (!d) return
 
     try {
-      setSavingId(id)
+      setSavingId(p.id)
 
       const { error } = await supabase.from('stock_moves').insert({
-        product_id: id,
+        product_id: p.id,
         qty: Math.abs(d),
         kind: d > 0 ? 'adjustment_in' : 'adjustment_out',
         notes: 'Manual stock adjustment',
@@ -51,15 +48,20 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
       if (error) throw error
 
-      // reset delta for this product
-      setDelta((prev) => {
+      // ✅ update UI without reload
+      setRows(prev =>
+        prev.map(r =>
+          r.id === p.id
+            ? { ...r, current_stock: r.current_stock + d }
+            : r
+        )
+      )
+
+      setDelta(prev => {
         const copy = { ...prev }
-        delete copy[id]
+        delete copy[p.id]
         return copy
       })
-
-      // simplest reliable refresh
-      location.reload()
     } finally {
       setSavingId(null)
     }
@@ -67,90 +69,66 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
   return (
     <>
-      {/* ✅ Controlled search input (no SearchBar typing issues) */}
       <input
         className="input"
         placeholder="Search products..."
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        style={{ marginBottom: 12 }}
+        onChange={e => setQuery(e.target.value)}
+        style={{ marginBottom: 16, maxWidth: 420 }}
       />
 
-      {!filtered.length ? (
-        <p className="empty">No products found.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Size</th>
-              <th>Current Stock</th>
-              <th>Unit</th>
-              <th>Supplier</th>
-              <th style={{ width: 220 }}>Actions</th>
-            </tr>
-          </thead>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>NAME</th>
+            <th>SIZE</th>
+            <th>CURRENT STOCK</th>
+            <th>UNIT</th>
+            <th>SUPPLIER</th>
+            <th style={{ width: 220 }}>ACTIONS</th>
+          </tr>
+        </thead>
 
-          <tbody>
-            {filtered.map((p) => {
-              const id = Number(p.id)
-              const isValidId = Number.isFinite(id)
+        <tbody>
+          {filtered.map(p => {
+            const d = delta[p.id] ?? 0
+            const preview = p.current_stock + d
 
-              const d = isValidId ? delta[id] ?? 0 : 0
-              const preview = p.current_stock + d
+            return (
+              <tr key={p.id}>
+                <td>{p.name}</td>
+                <td>{p.size}</td>
 
-              return (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td>{p.size}</td>
+                <td className={preview < 0 ? 'low-stock' : ''}>
+                  {preview}
+                </td>
 
-                  <td className={preview < 0 ? 'low-stock' : ''}>{preview}</td>
+                <td><span className="badge">{p.unit}</span></td>
+                <td>{p.supplier_name ?? '-'}</td>
 
-                  <td>
-                    <span className="badge">{p.unit}</span>
-                  </td>
+                <td style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => change(p.id, -1)} disabled={savingId === p.id}>−</button>
+                  <button onClick={() => change(p.id, 1)} disabled={savingId === p.id}>+</button>
 
-                  <td>{p.supplier_name ?? '-'}</td>
-
-                  <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {d !== 0 && (
                     <button
-                      type="button"
-                      onClick={() => change(id, -1)}
-                      disabled={!isValidId || savingId === id}
+                      className="btn-primary"
+                      onClick={() => save(p)}
+                      disabled={savingId === p.id}
                     >
-                      -
+                      Save
                     </button>
+                  )}
 
-                    <button
-                      type="button"
-                      onClick={() => change(id, 1)}
-                      disabled={!isValidId || savingId === id}
-                    >
-                      +
-                    </button>
-
-                    {isValidId && d !== 0 && (
-                      <button
-                        type="button"
-                        onClick={() => save(p)}
-                        disabled={savingId === id}
-                      >
-                        {savingId === id ? 'Saving...' : 'Save'}
-                      </button>
-                    )}
-
-                    {isValidId && (
-                      <a href={`/products/${id}`} className="btn">
-                        View
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+                  <a href={`/products/${p.id}`} className="link">
+                    View
+                  </a>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </>
   )
 }

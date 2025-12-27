@@ -13,19 +13,15 @@ type ProductRow = {
 export default async function ProductsPage() {
   const supabase = await createClient()
 
-  // ✅ IMPORTANT: filter out null ids at DB level
   const { data, error } = await supabase
     .from('product_stock_live' as any)
     .select('*')
-    .not('id', 'is', null)
+    .not('id', 'is', null) // 🔒 avoid NaN → bigint crash
     .order('name')
 
   if (error) throw new Error(error.message)
 
-  // ✅ Normalize & hard-guard against weird rows
-  const raw = (data ?? []) as unknown as ProductRow[]
-
-  const products = raw
+  const products = ((data ?? []) as unknown as ProductRow[])
     .map((r) => {
       const id = Number(r.id)
       if (!Number.isFinite(id)) return null
@@ -39,14 +35,14 @@ export default async function ProductsPage() {
         supplier_name: r.supplier_name ?? null,
       }
     })
-    .filter(Boolean) as Array<{
-    id: number
-    name: string
-    size: string
-    unit: string
-    current_stock: number
-    supplier_name: string | null
-  }>
+    .filter(Boolean) as {
+      id: number
+      name: string
+      size: string
+      unit: string
+      current_stock: number
+      supplier_name: string | null
+    }[]
 
   return (
     <div className="card">
