@@ -3,9 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 export default async function ProductHistory({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const productId = Number(params.id)
+  const { id } = await params
+  const productId = Number(id)
+
   const supabase = await createClient()
 
   const { data, error } = await supabase
