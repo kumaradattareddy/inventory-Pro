@@ -281,56 +281,65 @@ export default function DailyBillsPage() {
                    return (
                      <div key={uniqueKey} className="bill-group">
                        {/* Header Layout */}
-                       <div className="bill-header">
-                          <div className="flex justify-between items-end">
-                             {/* Left Stack: Bill No -> Executive -> Customer */}
-                             <div className="flex flex-col gap-2">
-                                <div className="bill-no" style={{ fontSize: 18 }}>
-                                  {isStandalone ? "Standalone Trans." : `Bill No: ${bill.billNo}`}
+                       <div className="bill-header flex flex-col gap-4">
+                          {/* Top Row: Identity & Customer */}
+                          <div className="flex justify-between items-start">
+                             {/* Left: Bill Info */}
+                             <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-3">
+                                   <span className="text-xl font-bold text-gray-800">
+                                     {isStandalone ? "Standalone Transaction" : `Bill No: ${bill.billNo}`}
+                                   </span>
+                                   
+                                   {/* Executive Badges */}
+                                   {!isStandalone && bill.execs.length > 0 && (
+                                     <div className="flex gap-1">
+                                       {bill.execs.map((e) => (
+                                         <span key={e} className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">
+                                           {e}
+                                         </span>
+                                       ))}
+                                     </div>
+                                   )}
                                 </div>
-                                
-                                {/* Executive Badges */}
-                                {!isStandalone && bill.execs.length > 0 && (
-                                  <div className="exec-wrap -mt-1">
-                                    <span className="exec-label">EXECUTIVE</span>
-                                    <div className="exec-badges">
-                                      {bill.execs.map((e) => (
-                                        <span key={e} className="exec-badge">{e}</span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {/* Customer Name */}
-                                <div className="mt-1">
-                                  <div className="text-base font-bold text-gray-800 leading-tight">{bill.customerName}</div>
-                                  {bill.customerId && <div className="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-0.5">Customer</div>}
+                                <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                                   {format(new Date(bill.date), "dd MMM yyyy")}
                                 </div>
-
-                                {/* Net Bill (Left side) */}
-                                {!isStandalone && (
-                                   <div className="mt-2 text-sm font-semibold text-gray-600">
-                                      Net Bill: <span className="text-gray-900">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
-                                   </div>
-                                )}
                              </div>
                              
-                             {/* Right Stack: Payment Summaries */}
-                             {!isStandalone && (
-                               <div className="flex flex-col items-end gap-1 text-sm font-medium">
-                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Amount Paid:</span>
-                                    <span className="text-emerald-600 font-bold">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
-                                 </div>
-                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Bill Balance:</span>
-                                    <span className={`font-bold ${bill.summary.billBalance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                      ₹{bill.summary.billBalance.toLocaleString("en-IN")}
-                                    </span>
-                                 </div>
-                               </div>
-                             )}
+                             {/* Right: Customer Info */}
+                             <div className="text-right">
+                                <div className="text-lg font-bold text-gray-900 leading-tight">{bill.customerName}</div>
+                                {bill.customerId && (
+                                  <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Customer</div>
+                                )}
+                             </div>
                           </div>
+
+                          {/* Bottom Row: Financial Stats */}
+                          {!isStandalone && (
+                            <div className="grid grid-cols-3 gap-4 pt-3 border-t border-gray-100 mt-1">
+                               {/* Net Bill */}
+                               <div className="flex flex-col">
+                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Net Bill</span>
+                                  <span className="text-gray-900 font-bold text-lg">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
+                               </div>
+                               
+                               {/* Amount Paid */}
+                               <div className="flex flex-col text-center border-l border-r border-gray-50/50">
+                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Amount Paid</span>
+                                  <span className="text-emerald-600 font-bold text-lg">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
+                               </div>
+                               
+                               {/* Balance */}
+                               <div className="flex flex-col text-right">
+                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Balance</span>
+                                  <span className={`font-bold text-lg ${bill.summary.billBalance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                    ₹{bill.summary.billBalance.toLocaleString("en-IN")}
+                                  </span>
+                               </div>
+                            </div>
+                          )}
                        </div>
     
                        {/* Table */}
