@@ -221,73 +221,92 @@ export default function DailyBillsPage() {
         <h1 className="page-title">Daily Bills & Transactions</h1>
       </div>
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-12">
         {dailyGroups.map((dayGroup) => (
           <div key={dayGroup.dateLabel}>
-            <h3 className="text-xl font-bold text-gray-700 mb-4 sticky top-0 bg-gray-50 py-2 z-10 border-b">
-              {dayGroup.dateLabel}
-            </h3>
+            <div className="sticky top-0 bg-gray-50/95 backdrop-blur py-3 z-10 border-b border-gray-200 mb-6">
+              <h3 className="text-lg font-bold text-gray-700">{dayGroup.dateLabel}</h3>
+            </div>
             
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-8">
               {dayGroup.bills.map((bill, idx) => {
-                 // Adjust unique key
                  const uniqueKey = `${bill.billNo}-${bill.customerId}-${idx}`;
-                 return (
-                   <div key={uniqueKey} className="card border border-gray-200 shadow-sm">
-                     <div className="card-header bg-white border-b border-gray-100 py-3 px-4 flex flex-wrap justify-between items-center gap-2">
-                       <div className="flex flex-col">
-                         <div className="text-lg font-bold text-gray-800">
-                           {bill.billNo !== "—" ? `Bill #${bill.billNo}` : "Transaction"}
-                         </div>
-                         <div className="text-sm text-gray-500 font-medium">
-                           {bill.customerName}
-                         </div>
-                       </div>
+                 const isStandalone = bill.billNo === "—";
 
-                       <div className="flex flex-col items-end gap-1">
-                          {bill.billNo !== "—" && (
-                            <div className="text-sm">
-                              <span className="text-gray-500 mr-2">Net: ₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
-                              <span className="text-gray-500 mr-2">Paid: <span className="text-green-600">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span></span>
-                              <span className={`font-bold ${bill.summary.billBalance > 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                Due: ₹{bill.summary.billBalance.toLocaleString("en-IN")}
-                              </span>
+                 return (
+                   <div key={uniqueKey} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                     {/* Card Header */}
+                     <div className="p-6 pb-2">
+                        {/* Row 1: Bill No & Customer */}
+                        <div className="flex justify-between items-start mb-2">
+                           <div>
+                              <div className="text-xl font-bold text-gray-900">
+                                {isStandalone ? "Transaction" : `Bill No: ${bill.billNo}`}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1 font-medium">{bill.customerName}</div>
+                           </div>
+                        </div>
+
+                        {/* Row 2: Executive */}
+                        {!isStandalone && bill.execs.length > 0 && (
+                          <div className="flex items-center gap-2 mt-2 mb-4">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">EXECUTIVE</span>
+                            <div className="flex gap-2">
+                              {bill.execs.map(e => (
+                                <span key={e} className="bg-emerald-400 text-white px-3 py-0.5 rounded-full text-sm font-medium shadow-sm">
+                                  {e}
+                                </span>
+                              ))}
                             </div>
-                          )}
-                          {bill.execs.length > 0 && (
-                            <div className="flex gap-1">
-                               {bill.execs.map(e => (
-                                 <span key={e} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs border border-blue-100">
-                                   {e}
-                                 </span>
-                               ))}
-                            </div>
-                          )}
-                       </div>
+                          </div>
+                        )}
+
+                        {/* Row 3: Summary Bar */}
+                        {!isStandalone && (
+                          <div className="flex justify-between items-center mt-6 mb-2 text-sm border-t border-gray-50 pt-4">
+                             <div className="font-semibold text-gray-600">
+                               Net Bill: <span className="text-gray-900">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
+                             </div>
+                             
+                             <div className="font-semibold text-gray-600">
+                               Amount Paid: <span className="text-emerald-600">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
+                             </div>
+
+                             <div className="font-semibold text-gray-600">
+                               Bill Balance: <span className={`text-lg ${bill.summary.billBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{bill.summary.billBalance.toLocaleString("en-IN")}</span>
+                             </div>
+                          </div>
+                        )}
                      </div>
 
-                     <div className="card-body p-0">
+                     {/* Table */}
+                     <div className="border-t border-gray-100">
                        <table className="w-full text-left text-sm">
-                         <thead className="bg-gray-50 text-gray-500 border-b border-gray-100">
+                         <thead className="bg-gray-50/50 text-gray-400 text-[11px] font-bold uppercase tracking-wider">
                            <tr>
-                              <th className="py-2 px-4 font-medium">Type</th>
-                              <th className="py-2 px-4 font-medium">Details</th>
-                              <th className="py-2 px-4 font-medium text-right">Qty</th>
-                              <th className="py-2 px-4 font-medium text-right">Rate</th>
-                              <th className="py-2 px-4 font-medium text-right">Amount</th>
+                              <th className="py-3 px-6 cursor-default">Date</th>
+                              <th className="py-3 px-6 cursor-default">Type</th>
+                              <th className="py-3 px-6 cursor-default w-1/3">Details</th>
+                              <th className="py-3 px-6 cursor-default text-right">Qty</th>
+                              <th className="py-3 px-6 cursor-default text-right">Rate</th>
+                              <th className="py-3 px-6 cursor-default text-right">Amount</th>
                            </tr>
                          </thead>
-                         <tbody>
+                         <tbody className="divide-y divide-gray-50">
                            {bill.items.map((item, i) => (
-                             <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                               <td className="py-2 px-4 text-gray-600 w-24">{item.type}</td>
-                               <td className="py-2 px-4 text-gray-800">{item.details}</td>
-                               <td className="py-2 px-4 text-gray-600 text-right w-16">{item.qty || "—"}</td>
-                               <td className="py-2 px-4 text-gray-600 text-right w-24">
+                             <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                               <td className="py-4 px-6 text-gray-600 font-medium">
+                                 {format(new Date(item.date), "dd/MM/yyyy")}
+                               </td>
+                               <td className="py-4 px-6 text-gray-800 font-medium">{item.type}</td>
+                               <td className="py-4 px-6 text-gray-600">{item.details}</td>
+                               <td className="py-4 px-6 text-gray-500 text-right">{item.qty || "—"}</td>
+                               <td className="py-4 px-6 text-gray-500 text-right">
                                  {item.price_per_unit ? `₹${item.price_per_unit.toLocaleString("en-IN")}` : "—"}
                                </td>
-                               <td className="py-2 px-4 font-medium text-gray-800 text-right w-32">
-                                  {item.amount < 0 ? "-" : ""}₹{Math.abs(item.amount).toLocaleString("en-IN")}
+                               <td className="py-4 px-6 font-bold text-gray-900 text-right">
+                                  {["Payment", "Payout", "Discount"].includes(item.type) ? "" : "+"}
+                                  ₹{Math.abs(item.amount).toLocaleString("en-IN")}
                                </td>
                              </tr>
                            ))}
@@ -302,7 +321,10 @@ export default function DailyBillsPage() {
         ))}
 
         {dailyGroups.length === 0 && !loading && (
-           <div className="text-center py-12 text-gray-400">No bills found.</div>
+           <div className="text-center py-20">
+             <div className="text-gray-300 text-6xl mb-4">🧾</div>
+             <p className="text-gray-500 text-lg">No bills found for the selected period.</p>
+           </div>
         )}
       </div>
     </div>
