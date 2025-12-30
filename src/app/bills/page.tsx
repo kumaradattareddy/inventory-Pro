@@ -279,62 +279,58 @@ export default function DailyBillsPage() {
                    const isStandalone = bill.billNo === "—";
     
                    return (
-                     <div key={uniqueKey} className="bill-group">
-                       {/* Header Layout */}
-                       <div className="bill-header flex flex-col gap-4">
+                     <div key={uniqueKey} className="db-card">
+                       {/* Header */}
+                       <div className="db-header">
                           {/* Top Row: Identity & Customer */}
-                          <div className="flex justify-between items-start">
+                          <div className="db-identity-row">
                              {/* Left: Bill Info */}
-                             <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-3">
-                                   <span className="text-xl font-bold text-gray-800">
-                                     {isStandalone ? "Standalone Transaction" : `Bill No: ${bill.billNo}`}
+                             <div className="db-bill-info">
+                                <div className="db-bill-no-row">
+                                   <span className="db-bill-no">
+                                     {isStandalone ? "Transaction" : `Bill No: ${bill.billNo}`}
                                    </span>
                                    
                                    {/* Executive Badges */}
-                                   {!isStandalone && bill.execs.length > 0 && (
-                                     <div className="flex gap-1">
-                                       {bill.execs.map((e) => (
-                                         <span key={e} className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">
-                                           {e}
-                                         </span>
-                                       ))}
-                                     </div>
-                                   )}
+                                   {!isStandalone && bill.execs.length > 0 && bill.execs.map((e) => (
+                                     <span key={e} className="db-exec-badge">
+                                       {e}
+                                     </span>
+                                   ))}
                                 </div>
-                                <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-                                   {format(new Date(bill.date), "dd MMM yyyy")}
+                                <div className="db-date">
+                                   {format(new Date(bill.date), "dd MMMM yyyy")}
                                 </div>
                              </div>
                              
                              {/* Right: Customer Info */}
-                             <div className="text-right">
-                                <div className="text-lg font-bold text-gray-900 leading-tight">{bill.customerName}</div>
+                             <div className="db-customer-info">
+                                <div className="db-customer-name">{bill.customerName}</div>
                                 {bill.customerId && (
-                                  <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Customer</div>
+                                  <div className="db-customer-label">Customer</div>
                                 )}
                              </div>
                           </div>
 
                           {/* Bottom Row: Financial Stats */}
                           {!isStandalone && (
-                            <div className="grid grid-cols-3 gap-4 pt-3 border-t border-gray-100 mt-1">
+                            <div className="db-stats-row">
                                {/* Net Bill */}
-                               <div className="flex flex-col">
-                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Net Bill</span>
-                                  <span className="text-gray-900 font-bold text-lg">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
+                               <div className="db-stat-item">
+                                  <span className="db-stat-label">Net Bill</span>
+                                  <span className="db-stat-value">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
                                </div>
                                
                                {/* Amount Paid */}
-                               <div className="flex flex-col text-center border-l border-r border-gray-50/50">
-                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Amount Paid</span>
-                                  <span className="text-emerald-600 font-bold text-lg">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
+                               <div className="db-stat-item center">
+                                  <span className="db-stat-label">Amount Paid</span>
+                                  <span className="db-stat-value green">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
                                </div>
                                
                                {/* Balance */}
-                               <div className="flex flex-col text-right">
-                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Balance</span>
-                                  <span className={`font-bold text-lg ${bill.summary.billBalance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                               <div className="db-stat-item right">
+                                  <span className="db-stat-label">Balance</span>
+                                  <span className={`db-stat-value ${bill.summary.billBalance > 0 ? 'red' : 'green'}`}>
                                     ₹{bill.summary.billBalance.toLocaleString("en-IN")}
                                   </span>
                                </div>
@@ -343,28 +339,34 @@ export default function DailyBillsPage() {
                        </div>
     
                        {/* Table */}
-                       <table className="data-table">
+                       <table className="db-table">
                          <thead>
                            <tr>
                               <th>Date</th>
                               <th>Type</th>
                               <th>Details</th>
-                              <th className="text-right">Qty</th>
-                              <th className="text-right">Rate</th>
-                              <th className="text-right">Amount</th>
+                              <th className="right">Qty</th>
+                              <th className="right">Rate</th>
+                              <th className="right">Amount</th>
                            </tr>
                          </thead>
                          <tbody>
                            {bill.items.map((item, i) => (
                              <tr key={i}>
-                               <td className="w-32">{format(new Date(item.date), "dd/MM/yyyy")}</td>
-                               <td className="w-24 text-gray-600 font-medium text-xs uppercase tracking-wide">{item.type}</td>
+                               <td style={{ width: 140 }}>
+                                 {format(new Date(item.date), "dd/MM/yyyy")}
+                               </td>
+                               <td style={{ width: 100 }}>
+                                 <span className="db-table-type">{item.type}</span>
+                               </td>
                                <td className="text-gray-700">{item.details}</td>
-                               <td className="text-right text-gray-500 w-20 font-mono text-xs">{item.qty || "—"}</td>
-                               <td className="text-right text-gray-500 w-24 font-mono text-xs">
+                               <td className="db-amount right" style={{ color: "#6b7280", width: 80 }}>
+                                 {item.qty || "—"}
+                               </td>
+                               <td className="db-amount right" style={{ color: "#6b7280", width: 100 }}>
                                  {item.price_per_unit ? `₹${item.price_per_unit.toLocaleString("en-IN")}` : "—"}
                                </td>
-                               <td className="text-right w-32 font-bold" style={{ color: ["Payment", "Payout"].includes(item.type) ? "#dc2626" : "#111827" }}>
+                               <td className={`db-amount right ${["Payment", "Payout", "Discount"].includes(item.type) ? 'minus' : 'plus'}`} style={{ width: 140 }}>
                                   {["Payment", "Payout", "Discount"].includes(item.type) ? "" : "+"}
                                   ₹{Math.abs(item.amount).toLocaleString("en-IN")}
                                </td>
