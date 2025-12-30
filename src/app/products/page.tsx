@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import ProductsPageClient from './products-page-client'
+import ProductsTable from './products-table'
 
 type ProductRowDB = {
   id: number | null
@@ -55,5 +55,5 @@ export default async function ProductsPage() {
     ]
   })
 
-  return <ProductsPageClient products={products} />
+  return <ProductsTable products={products} />
 }
