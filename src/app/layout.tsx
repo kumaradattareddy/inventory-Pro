@@ -37,6 +37,9 @@ export default function RootLayout({
             <SidebarNavItem href="/advances" icon="advances">
               Advances
             </SidebarNavItem>
+            <SidebarNavItem href="/bills" icon="bills">
+              Daily Bills
+            </SidebarNavItem>
             
           </nav>
         </aside>
