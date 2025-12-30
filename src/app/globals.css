@@ -596,7 +596,41 @@ body {
   font-weight: 600;
 }
 
+/* --- Product Utilities --- */
+.low-stock {
+  color: #c1121f;
+  font-weight: 700;
+}
 
+.link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+.link:hover {
+  text-decoration: underline;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background-color: #fff;
+  color: #374151;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-icon:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  color: #111827;
+}
 
 /* --- Daily Bills Page Specifics (Modern Cards) --- */
 

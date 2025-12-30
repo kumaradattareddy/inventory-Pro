@@ -132,8 +132,8 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
                 <td>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={() => change(p.id, -1)}>−</button>
-                    <button onClick={() => change(p.id, 1)}>+</button>
+                    <button className="btn-icon" onClick={() => change(p.id, -1)}>−</button>
+                    <button className="btn-icon" onClick={() => change(p.id, 1)}>+</button>
 
                     {d !== 0 && (
                       <button
