@@ -53,8 +53,8 @@ export default function DailyBillsPage() {
 
   // Filters
   const [sortOrder, setSortOrder] = useState<"date-desc" | "bill-desc" | "bill-asc">("bill-desc");
-  const [minBill, setMinBill] = useState("");
-  const [maxBill, setMaxBill] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -89,15 +89,16 @@ export default function DailyBillsPage() {
       }));
 
       // 4. Group by Bill No
+      // CORRECTION: Group strictly by Bill No to ensure Payouts (null cid) merge with Sales (valid cid) if Bill No matches.
       const billGroupsMap = new Map<string, Transaction[]>();
       const standaloneItems: Transaction[] = [];
 
       transactions.forEach((t) => {
-        if (t.bill_no) {
-          // Use composite key to avoid collisions if any, though bill_no acts as primary grouper
-          const compositeKey = `${t.bill_no}::${t.customer_id || "0"}`;
-          if (!billGroupsMap.has(compositeKey)) billGroupsMap.set(compositeKey, []);
-          billGroupsMap.get(compositeKey)!.push(t);
+        if (t.bill_no && t.bill_no !== "—") {
+          // Normalize bill no just in case
+          const key = t.bill_no;
+          if (!billGroupsMap.has(key)) billGroupsMap.set(key, []);
+          billGroupsMap.get(key)!.push(t);
         } else {
           standaloneItems.push(t);
         }
@@ -106,10 +107,15 @@ export default function DailyBillsPage() {
       const processedBills: BillGroup[] = [];
 
       // Process Bill Groups
-      for (const [_, items] of billGroupsMap.entries()) {
+      for (const [billNo, items] of billGroupsMap.entries()) {
         const sortedItems = items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         const firstItem = sortedItems[0];
         
+        // Resolve Customer from ANY item in the group (finding the first non-null occurrence)
+        const validItemWithCustomer = items.find(i => i.customer_id) || firstItem;
+        const customerId = validItemWithCustomer.customer_id;
+        const customerName = validItemWithCustomer.customer_name || "";
+
         // Extract Executives
         const execs = Array.from(new Set(
           sortedItems.filter((i) => i.type === "Executive").map((i) => i.details).filter(Boolean)
@@ -128,9 +134,9 @@ export default function DailyBillsPage() {
         const billBalance = billNet - totalPaid;
 
         processedBills.push({
-          billNo: firstItem.bill_no!,
-          customerId: firstItem.customer_id,
-          customerName: firstItem.customer_name || "",
+          billNo: billNo,
+          customerId: customerId,
+          customerName: customerName,
           execs,
           date: firstItem.date,
           items: displayItems,
@@ -158,22 +164,19 @@ export default function DailyBillsPage() {
       // ---------------- Filtering Logic ---------------- //
       let filtered = processedBills;
 
-      // Filter by Bill Number Range
-      if (minBill || maxBill) {
-        const min = parseInt(minBill) || 0;
-        const max = parseInt(maxBill) || Infinity;
+      // Filter by Date Range
+      if (startDate || endDate) {
+        const start = startDate ? new Date(startDate).getTime() : 0;
+        // End date should be inclusive
+        const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+
         filtered = filtered.filter(b => {
-          if (b.billNo === "—") return false; // Hide standalone if filtering by bill no
-          // Extract numeric part of bill no if it contains slashes (e.g. "2025/001" -> 1? or 2025001?)
-          // Assuming Bill No is string but mostly numeric or "YYYY/NNN". 
-          // Let's try to parse the last number segment for range specific simple numbers (like user showed '2422')
-          const numPart = parseInt(b.billNo.replace(/\D/g, "")); 
-          return numPart >= min && numPart <= max;
+           const bDate = new Date(b.date).getTime();
+           return bDate >= start && bDate <= end;
         });
       }
 
       // ---------------- Sorting Logic ---------------- //
-      // Sort the entire list of bills first
       filtered.sort((a, b) => {
         if (sortOrder === "bill-desc" || sortOrder === "bill-asc") {
           const nA = parseInt(a.billNo.replace(/\D/g, "") || "0");
@@ -181,18 +184,10 @@ export default function DailyBillsPage() {
           if (sortOrder === "bill-desc") return nB - nA;
           return nA - nB;
         }
-        // Default: date-desc
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
 
-      // 5. Group by Day (After sort? Or sort days?)
-      // If sorting by Bill Number, days might get mixed up if bills are out of order date-wise.
-      // But typically we still want to see them grouped by "Day of creation" or just a flat list?
-      // User asked for "Day wise". So we group by Day, THEN sort bills within day? 
-      // OR sort days, then sort bills within day.
-      // Let's do: Group by day based on the BILL date. 
-      // Sort keys (days) descending. Show bills in the selected sort order within that day.
-      
+      // 5. Group by Day
       const groupsByDay = new Map<string, BillGroup[]>();
       filtered.forEach((bill) => {
         const d = new Date(bill.date);
@@ -202,7 +197,7 @@ export default function DailyBillsPage() {
       });
 
       const finalDailyGroups: DailyGroup[] = [];
-      const dayKeys = Array.from(groupsByDay.keys()).sort().reverse(); // Days always newest first
+      const dayKeys = Array.from(groupsByDay.keys()).sort().reverse(); 
 
       dayKeys.forEach((dayKey) => {
         const dateObj = new Date(dayKey);
@@ -213,8 +208,7 @@ export default function DailyBillsPage() {
         // Valid bills for this day
         const dayBills = groupsByDay.get(dayKey)!;
         
-        // Re-sort within the day just in case map insertion order varied, though we sorted `filtered` above.
-        // If sorting by Bill No, strictly follow that order.
+        // Re-sort within the day
         dayBills.sort((a, b) => {
              if (sortOrder === "bill-desc") {
                return (parseInt(b.billNo.replace(/\D/g, "") || "0") - parseInt(a.billNo.replace(/\D/g, "") || "0"));
@@ -235,7 +229,7 @@ export default function DailyBillsPage() {
     }
 
     fetchData();
-  }, [supabase, minBill, maxBill, sortOrder]);
+  }, [supabase, startDate, endDate, sortOrder]);
 
   return (
     <div className="page">
@@ -248,12 +242,12 @@ export default function DailyBillsPage() {
         {/* Filter/Sort Bar */}
         <div className="flex gap-4 items-end bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
            <div className="flex flex-col gap-1">
-             <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">From Bill</label>
-             <input type="text" className="form-input !h-8 !text-sm !w-24" placeholder="e.g. 100" value={minBill} onChange={(e) => setMinBill(e.target.value)} />
+             <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">From Date</label>
+             <input type="date" className="form-input !h-8 !text-sm !w-36" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
            </div>
            <div className="flex flex-col gap-1">
-             <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">To Bill</label>
-             <input type="text" className="form-input !h-8 !text-sm !w-24" placeholder="e.g. 200" value={maxBill} onChange={(e) => setMaxBill(e.target.value)} />
+             <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">To Date</label>
+             <input type="date" className="form-input !h-8 !text-sm !w-36" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
            </div>
            <div className="flex flex-col gap-1">
              <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Sort</label>
@@ -286,17 +280,18 @@ export default function DailyBillsPage() {
     
                    return (
                      <div key={uniqueKey} className="bill-group">
-                       {/* Header */}
+                       {/* Header Layout */}
                        <div className="bill-header">
-                          {/* Top Row: Bill No (Left) -- Customer (Right) */}
-                          <div className="flex justify-between items-start">
-                             <div>
+                          <div className="flex justify-between items-end">
+                             {/* Left Stack: Bill No -> Executive -> Customer */}
+                             <div className="flex flex-col gap-2">
                                 <div className="bill-no" style={{ fontSize: 18 }}>
                                   {isStandalone ? "Standalone Trans." : `Bill No: ${bill.billNo}`}
                                 </div>
+                                
                                 {/* Executive Badges */}
                                 {!isStandalone && bill.execs.length > 0 && (
-                                  <div className="exec-wrap mt-2">
+                                  <div className="exec-wrap -mt-1">
                                     <span className="exec-label">EXECUTIVE</span>
                                     <div className="exec-badges">
                                       {bill.execs.map((e) => (
@@ -305,29 +300,37 @@ export default function DailyBillsPage() {
                                     </div>
                                   </div>
                                 )}
+                                
+                                {/* Customer Name */}
+                                <div className="mt-1">
+                                  <div className="text-base font-bold text-gray-800 leading-tight">{bill.customerName}</div>
+                                  {bill.customerId && <div className="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-0.5">Customer</div>}
+                                </div>
+
+                                {/* Net Bill (Left side) */}
+                                {!isStandalone && (
+                                   <div className="mt-2 text-sm font-semibold text-gray-600">
+                                      Net Bill: <span className="text-gray-900">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
+                                   </div>
+                                )}
                              </div>
                              
-                             {/* Customer Name on RIGHT as requested */}
-                             <div className="text-right">
-                                <div className="text-lg font-bold text-gray-800">{bill.customerName}</div>
-                                {bill.customerId && <div className="text-xs text-gray-400 font-medium uppercase tracking-wide">Customer</div>}
-                             </div>
+                             {/* Right Stack: Payment Summaries */}
+                             {!isStandalone && (
+                               <div className="flex flex-col items-end gap-1 text-sm font-medium">
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Amount Paid:</span>
+                                    <span className="text-emerald-600 font-bold">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Bill Balance:</span>
+                                    <span className={`font-bold ${bill.summary.billBalance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                      ₹{bill.summary.billBalance.toLocaleString("en-IN")}
+                                    </span>
+                                 </div>
+                               </div>
+                             )}
                           </div>
-    
-                          {/* Summary Row */}
-                          {!isStandalone && (
-                            <div className="bill-summary mt-4 pt-4 border-t border-gray-100">
-                              <div className="summary-item">
-                                <span>Net Bill:</span> <span className="value">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
-                              </div>
-                              <div className="summary-item">
-                                <span>Amount Paid:</span> <span className="value positive">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
-                              </div>
-                              <div className="summary-item">
-                                <span>Bill Balance:</span> <span className={`value ${bill.summary.billBalance > 0 ? 'negative' : 'positive'}`}>₹{bill.summary.billBalance.toLocaleString("en-IN")}</span>
-                              </div>
-                            </div>
-                          )}
                        </div>
     
                        {/* Table */}
