@@ -221,98 +221,86 @@ export default function DailyBillsPage() {
         <h1 className="page-title">Daily Bills & Transactions</h1>
       </div>
 
-      <div className="flex flex-col gap-12">
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
         {dailyGroups.map((dayGroup) => (
           <div key={dayGroup.dateLabel}>
-            <div className="sticky top-0 bg-gray-50/95 backdrop-blur py-3 z-10 border-b border-gray-200 mb-6">
-              <h3 className="text-lg font-bold text-gray-700">{dayGroup.dateLabel}</h3>
-            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "#374151", marginBottom: 16 }}>{dayGroup.dateLabel}</h3>
             
-            <div className="flex flex-col gap-8">
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               {dayGroup.bills.map((bill, idx) => {
                  const uniqueKey = `${bill.billNo}-${bill.customerId}-${idx}`;
                  const isStandalone = bill.billNo === "—";
 
                  return (
-                   <div key={uniqueKey} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                     {/* Card Header */}
-                     <div className="p-6 pb-2">
-                        {/* Row 1: Bill No & Customer */}
-                        <div className="flex justify-between items-start mb-2">
-                           <div>
-                              <div className="text-xl font-bold text-gray-900">
-                                {isStandalone ? "Transaction" : `Bill No: ${bill.billNo}`}
-                              </div>
-                              <div className="text-sm text-gray-500 mt-1 font-medium">{bill.customerName}</div>
-                           </div>
+                   <div key={uniqueKey} className="bill-group">
+                     <div className="bill-header">
+                        <div className="bill-no">
+                          {isStandalone ? "Standalone Transaction" : `Bill No: ${bill.billNo}`}
+                        </div>
+                        
+                        {/* Customer Name */}
+                        <div style={{ fontWeight: 500, color: "#4b5563", marginTop: 4 }}>
+                          {bill.customerName}
                         </div>
 
-                        {/* Row 2: Executive */}
+                        {/* Executives */}
                         {!isStandalone && bill.execs.length > 0 && (
-                          <div className="flex items-center gap-2 mt-2 mb-4">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">EXECUTIVE</span>
-                            <div className="flex gap-2">
+                          <div className="exec-wrap">
+                            <span className="exec-label">EXECUTIVE</span>
+                            <div className="exec-badges">
                               {bill.execs.map(e => (
-                                <span key={e} className="bg-emerald-400 text-white px-3 py-0.5 rounded-full text-sm font-medium shadow-sm">
-                                  {e}
-                                </span>
+                                <span key={e} className="exec-badge">{e}</span>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {/* Row 3: Summary Bar */}
+                        {/* Summary */}
                         {!isStandalone && (
-                          <div className="flex justify-between items-center mt-6 mb-2 text-sm border-t border-gray-50 pt-4">
-                             <div className="font-semibold text-gray-600">
-                               Net Bill: <span className="text-gray-900">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
-                             </div>
-                             
-                             <div className="font-semibold text-gray-600">
-                               Amount Paid: <span className="text-emerald-600">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
-                             </div>
-
-                             <div className="font-semibold text-gray-600">
-                               Bill Balance: <span className={`text-lg ${bill.summary.billBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{bill.summary.billBalance.toLocaleString("en-IN")}</span>
-                             </div>
+                          <div className="bill-summary">
+                            <div className="summary-item">
+                              <span>Net Bill:</span> <span className="value">₹{bill.summary.billNet.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="summary-item">
+                              <span>Amount Paid:</span> <span className="value positive">₹{bill.summary.totalPaid.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="summary-item">
+                              <span>Bill Balance:</span> <span className={`value ${bill.summary.billBalance > 0 ? 'negative' : 'positive'}`}>₹{bill.summary.billBalance.toLocaleString("en-IN")}</span>
+                            </div>
                           </div>
                         )}
                      </div>
 
                      {/* Table */}
-                     <div className="border-t border-gray-100">
-                       <table className="w-full text-left text-sm">
-                         <thead className="bg-gray-50/50 text-gray-400 text-[11px] font-bold uppercase tracking-wider">
-                           <tr>
-                              <th className="py-3 px-6 cursor-default">Date</th>
-                              <th className="py-3 px-6 cursor-default">Type</th>
-                              <th className="py-3 px-6 cursor-default w-1/3">Details</th>
-                              <th className="py-3 px-6 cursor-default text-right">Qty</th>
-                              <th className="py-3 px-6 cursor-default text-right">Rate</th>
-                              <th className="py-3 px-6 cursor-default text-right">Amount</th>
+                     <table className="data-table">
+                       <thead>
+                         <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Details</th>
+                            <th style={{ textAlign: "right" }}>Qty</th>
+                            <th style={{ textAlign: "right" }}>Rate</th>
+                            <th style={{ textAlign: "right" }}>Amount</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {bill.items.map((item, i) => (
+                           <tr key={i}>
+                             <td>{format(new Date(item.date), "dd/MM/yyyy")}</td>
+                             <td>{item.type}</td>
+                             <td style={{ color: "#4b5563" }}>{item.details}</td>
+                             <td style={{ textAlign: "right", color: "#6b7280" }}>{item.qty || "—"}</td>
+                             <td style={{ textAlign: "right", color: "#6b7280" }}>
+                               {item.price_per_unit ? `₹${item.price_per_unit.toLocaleString("en-IN")}` : "—"}
+                             </td>
+                             <td style={{ textAlign: "right", fontWeight: 600, color: ["Payment", "Payout"].includes(item.type) ? "#dc2626" : "#111827" }}>
+                                {["Payment", "Payout", "Discount"].includes(item.type) ? "" : "+"}
+                                ₹{Math.abs(item.amount).toLocaleString("en-IN")}
+                             </td>
                            </tr>
-                         </thead>
-                         <tbody className="divide-y divide-gray-50">
-                           {bill.items.map((item, i) => (
-                             <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                               <td className="py-4 px-6 text-gray-600 font-medium">
-                                 {format(new Date(item.date), "dd/MM/yyyy")}
-                               </td>
-                               <td className="py-4 px-6 text-gray-800 font-medium">{item.type}</td>
-                               <td className="py-4 px-6 text-gray-600">{item.details}</td>
-                               <td className="py-4 px-6 text-gray-500 text-right">{item.qty || "—"}</td>
-                               <td className="py-4 px-6 text-gray-500 text-right">
-                                 {item.price_per_unit ? `₹${item.price_per_unit.toLocaleString("en-IN")}` : "—"}
-                               </td>
-                               <td className="py-4 px-6 font-bold text-gray-900 text-right">
-                                  {["Payment", "Payout", "Discount"].includes(item.type) ? "" : "+"}
-                                  ₹{Math.abs(item.amount).toLocaleString("en-IN")}
-                               </td>
-                             </tr>
-                           ))}
-                         </tbody>
-                       </table>
-                     </div>
+                         ))}
+                       </tbody>
+                     </table>
                    </div>
                  );
               })}
@@ -321,10 +309,7 @@ export default function DailyBillsPage() {
         ))}
 
         {dailyGroups.length === 0 && !loading && (
-           <div className="text-center py-20">
-             <div className="text-gray-300 text-6xl mb-4">🧾</div>
-             <p className="text-gray-500 text-lg">No bills found for the selected period.</p>
-           </div>
+           <div className="empty">No bills found.</div>
         )}
       </div>
     </div>
