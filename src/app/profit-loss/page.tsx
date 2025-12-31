@@ -126,7 +126,6 @@ export default function ProfitLossPage() {
 
 
         // 4. EXECUTIVE SALES (New Logic)
-        // Fetch all ledger transactions
         const { data: ledgerData } = await supabase
             .from("bill_transaction_ledger")
             .select("*");
@@ -134,31 +133,38 @@ export default function ProfitLossPage() {
         const execMap: Record<string, number> = {};
         const billGroups: Record<string, any[]> = {};
 
-        // Group by Bill No
+        // Group by Bill No (Robust)
         (ledgerData || []).forEach((row: any) => {
-            if (row.bill_no && row.bill_no !== "—") {
-                if (!billGroups[row.bill_no]) billGroups[row.bill_no] = [];
-                billGroups[row.bill_no].push(row);
+            const billNo = row.bill_no ? String(row.bill_no).trim() : "—";
+            if (billNo !== "—") {
+                if (!billGroups[billNo]) billGroups[billNo] = [];
+                billGroups[billNo].push(row);
             }
         });
 
         // Process each bill
         Object.values(billGroups).forEach(items => {
-            // Find executives
+            // Find executives (Case Insensitive Check)
             const execs = items
-                .filter(i => i.type === "Executive" && i.details)
-                .map(i => i.details as string);
+                .filter(i => i.type && i.type.toLowerCase() === "executive" && i.details)
+                .map(i => String(i.details).trim());
             
             // Calculate Bill Net (Sales Only)
             const billNet = items
-                .filter(i => ["Sale", "Charge", "Discount"].includes(i.type))
+                .filter(i => {
+                    const t = i.type || "";
+                    return ["Sale", "Charge", "Discount"].includes(t);
+                })
                 .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
             // Attribute to executives (shared credit)
             if (execs.length > 0 && billNet > 0) {
                  const uniqueExecs = Array.from(new Set(execs));
                  uniqueExecs.forEach(exec => {
-                     execMap[exec] = (execMap[exec] || 0) + billNet;
+                     // Add safe check for legacy empty strings
+                     if (exec) {
+                        execMap[exec] = (execMap[exec] || 0) + billNet;
+                     }
                  });
             }
         });
