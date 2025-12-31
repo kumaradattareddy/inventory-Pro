@@ -269,30 +269,28 @@ export default function ProfitLossPage() {
         <h1 className="page-title">Profit & Loss Overview</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+      <div className="pl-grid">
         {/* Card 1: Payables */}
-        <div className="db-card flex flex-col justify-between hover:shadow-lg transition-shadow border-l-4 border-l-red-500 overflow-visible relative">
-           <div className="p-6 pb-20">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-red-50 rounded-lg text-red-600">
-                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
-                            <path fillRule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v9.75c0 1.036-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 14.625v-9.75ZM8.25 9.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM18.75 9a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75V9.75a.75.75 0 0 0-.75-.75h-.008ZM4.5 9.75A.75.75 0 0 1 5.25 9h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V9.75Z" clipRule="evenodd" />
-                            <path d="M2.25 18a.75.75 0 0 0 0 1.5c5.4 0 10.63.722 15.6 2.075 1.19.324 2.4-.558 2.4-1.82V18.75a.75.75 0 0 0-.75-.75H2.25Z" />
-                        </svg>
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Total Payables</h3>
+        <div className="pl-card payables">
+           <div className="pl-card-content">
+                <div className="pl-icon-wrapper">
+                    <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
+                        <path fillRule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v9.75c0 1.036-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 14.625v-9.75ZM8.25 9.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM18.75 9a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75V9.75a.75.75 0 0 0-.75-.75h-.008ZM4.5 9.75A.75.75 0 0 1 5.25 9h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V9.75Z" clipRule="evenodd" />
+                        <path d="M2.25 18a.75.75 0 0 0 0 1.5c5.4 0 10.63.722 15.6 2.075 1.19.324 2.4-.558 2.4-1.82V18.75a.75.75 0 0 0-.75-.75H2.25Z" />
+                    </svg>
                 </div>
-                <div className="text-4xl font-extrabold text-gray-900 mt-2">
+                <h3 className="pl-card-title">Total Payables</h3>
+                <div className="pl-card-value">
                     ₹{totals.payables.toLocaleString("en-IN")}
                 </div>
-                <div className="text-sm font-medium text-gray-400 mt-2">Owed to Suppliers</div>
+                <div className="pl-card-subtitle">Owed to Suppliers</div>
            </div>
            
-           <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50/50">
+           <div className="pl-card-footer">
                 <button 
                   onClick={() => setViewMode("payables")}
-                  className="w-full text-center text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="pl-action-btn"
                 >
                     View Breakdown <span>→</span>
                 </button>
@@ -300,26 +298,24 @@ export default function ProfitLossPage() {
         </div>
 
         {/* Card 2: Receivables */}
-        <div className="db-card flex flex-col justify-between hover:shadow-lg transition-shadow border-l-4 border-l-blue-500 overflow-visible relative">
-           <div className="p-6 pb-20">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M4.5 3.75a3 3 0 0 0-3 3v.75h21v-.75a3 3 0 0 0-3-3h-15Z" />
-                            <path fillRule="evenodd" d="M22.5 9.75h-21v7.5a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-7.5Zm-18 3.75a.75.75 0 0 1 .75-.75h6a.75.75 0 0 1 0 1.5h-6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Total Receivables</h3>
+        <div className="pl-card receivables">
+           <div className="pl-card-content">
+                <div className="pl-icon-wrapper">
+                    <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4.5 3.75a3 3 0 0 0-3 3v.75h21v-.75a3 3 0 0 0-3-3h-15Z" />
+                        <path fillRule="evenodd" d="M22.5 9.75h-21v7.5a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-7.5Zm-18 3.75a.75.75 0 0 1 .75-.75h6a.75.75 0 0 1 0 1.5h-6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" clipRule="evenodd" />
+                    </svg>
                 </div>
-                <div className="text-4xl font-extrabold text-gray-900 mt-2">
+                <h3 className="pl-card-title">Total Receivables</h3>
+                <div className="pl-card-value">
                     ₹{totals.receivables.toLocaleString("en-IN")}
                 </div>
-                <div className="text-sm font-medium text-gray-400 mt-2">Pending from Customers</div>
+                <div className="pl-card-subtitle">Pending from Customers</div>
            </div>
-           <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50/50">
+           <div className="pl-card-footer">
                 <button 
                   onClick={() => setViewMode("receivables")}
-                  className="w-full text-center text-sm font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="pl-action-btn"
                 >
                     View Customers <span>→</span>
                 </button>
@@ -327,25 +323,23 @@ export default function ProfitLossPage() {
         </div>
 
         {/* Card 3: Stock Value */}
-        <div className="db-card flex flex-col justify-between hover:shadow-lg transition-shadow border-l-4 border-l-purple-500 overflow-visible relative">
-           <div className="p-6 pb-20">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
-                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                            <path fillRule="evenodd" d="M7.5 6v.75H5.513c-.96 0-1.764.724-1.865 1.679l-1.263 12A1.875 1.875 0 0 0 4.25 22.5h15.5a1.875 1.875 0 0 0 1.865-2.071l-1.263-12a1.875 1.875 0 0 0-1.865-1.679H16.5V6a4.5 4.5 0 1 0-9 0ZM12 3a3 3 0 0 0-3 3v.75h6V6a3 3 0 0 0-3-3Zm-3 8.25a3 3 0 1 0 6 0v-.75a.75.75 0 0 1 1.5 0v.75a4.5 4.5 0 1 1-9 0v-.75a.75.75 0 0 1 1.5 0v.75Z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Total Stock Value</h3>
+        <div className="pl-card stock">
+           <div className="pl-card-content">
+                <div className="pl-icon-wrapper">
+                    <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.5 6v.75H5.513c-.96 0-1.764.724-1.865 1.679l-1.263 12A1.875 1.875 0 0 0 4.25 22.5h15.5a1.875 1.875 0 0 0 1.865-2.071l-1.263-12a1.875 1.875 0 0 0-1.865-1.679H16.5V6a4.5 4.5 0 1 0-9 0ZM12 3a3 3 0 0 0-3 3v.75h6V6a3 3 0 0 0-3-3Zm-3 8.25a3 3 0 1 0 6 0v-.75a.75.75 0 0 1 1.5 0v.75a4.5 4.5 0 1 1-9 0v-.75a.75.75 0 0 1 1.5 0v.75Z" clipRule="evenodd" />
+                    </svg>
                 </div>
-                <div className="text-4xl font-extrabold text-gray-900 mt-2">
+                <h3 className="pl-card-title">Total Stock Value</h3>
+                <div className="pl-card-value">
                     ₹{totals.stockValue.toLocaleString("en-IN")}
                 </div>
-                <div className="text-sm font-medium text-gray-400 mt-2">Current Inventory Worth</div>
+                <div className="pl-card-subtitle">Current Inventory Worth</div>
            </div>
-           <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50/50">
+           <div className="pl-card-footer">
                 <button 
                   onClick={() => setViewMode("stock")}
-                  className="w-full text-center text-sm font-bold text-purple-600 hover:text-purple-700 uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="pl-action-btn"
                 >
                     Analyze Stock <span>→</span>
                 </button>
