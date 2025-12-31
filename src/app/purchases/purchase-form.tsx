@@ -224,6 +224,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           price_per_unit: row.price,
           bill_no: billNo || null,
           bill_date: billDate || null,
+          ts: new Date().toISOString(), // Fix: Explicitly setting timestamp
         });
       }
 
