@@ -125,48 +125,59 @@ export default function ProfitLossPage() {
         setStock(processedStock);
 
 
-        // 4. EXECUTIVE SALES (New Logic)
-        const { data: ledgerData } = await supabase
-            .from("bill_transaction_ledger")
-            .select("*");
-        
-        const execMap: Record<string, number> = {};
-        const billGroups: Record<string, any[]> = {};
+        // 4. EXECUTIVE SALES (New Logic - Explicit Fetch)
+        const [ledgerResult, adjResult] = await Promise.all([
+            supabase.from("bill_transaction_ledger").select("*"),
+            supabase.from("bill_adjustments").select("bill_no, details, type").ilike("type", "executive")
+        ]);
 
-        // Group by Bill No (Robust)
-        (ledgerData || []).forEach((row: any) => {
+        const ledgerData = ledgerResult.data || [];
+        const adjustmentData = adjResult.data || [];
+
+        const execMap: Record<string, number> = {};
+        const billSales: Record<string, number> = {};
+        const billExecs: Record<string, Set<string>> = {};
+
+        // 1. Map Executives to Bills (from bill_adjustments)
+        adjustmentData.forEach((row: any) => {
             const billNo = row.bill_no ? String(row.bill_no).trim() : "—";
-            if (billNo !== "—") {
-                if (!billGroups[billNo]) billGroups[billNo] = [];
-                billGroups[billNo].push(row);
+            const execName = row.details ? String(row.details).trim() : "";
+            
+            if (billNo !== "—" && execName) {
+                if (!billExecs[billNo]) billExecs[billNo] = new Set();
+                billExecs[billNo].add(execName);
             }
         });
 
-        // Process each bill
-        Object.values(billGroups).forEach(items => {
-            // Find executives (Case Insensitive Check)
-            const execs = items
-                .filter(i => i.type && i.type.toLowerCase() === "executive" && i.details)
-                .map(i => String(i.details).trim());
-            
-            // Calculate Bill Net (Sales Only)
-            const billNet = items
-                .filter(i => {
-                    const t = i.type || "";
-                    return ["Sale", "Charge", "Discount"].includes(t);
-                })
-                .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+        // 2. Calculate Net Sales per Bill (from ledger)
+        ledgerData.forEach((row: any) => {
+             const billNo = row.bill_no ? String(row.bill_no).trim() : "—";
+             if (billNo === "—") return;
 
-            // Attribute to executives (shared credit)
-            if (execs.length > 0 && billNet > 0) {
-                 const uniqueExecs = Array.from(new Set(execs));
-                 uniqueExecs.forEach(exec => {
-                     // Add safe check for legacy empty strings
-                     if (exec) {
-                        execMap[exec] = (execMap[exec] || 0) + billNet;
-                     }
+             const t = row.type || "";
+             // Only count revenue-generating items
+             if (["Sale", "Charge", "Discount"].includes(t)) {
+                 const amt = Number(row.amount) || 0;
+                 billSales[billNo] = (billSales[billNo] || 0) + amt;
+             }
+        });
+
+        // 3. Attribute Sales to Executives
+        Object.keys(billSales).forEach(billNo => {
+             const sales = billSales[billNo];
+             if (sales <= 0) return; // Skip zero/negatives if necessary (though net discount could be neg, usually we want gross or net positive)
+             
+             const execs = billExecs[billNo];
+             if (execs && execs.size > 0) {
+                 // Full attribution (if multiple execs on one bill, they all get full credit? 
+                 // Or split? Usually full credit or split. User didn't specify, but "Credit to that person" implies attribution.
+                 // Let's go with full attribution to each listed executive for now as it's standard for "Performance" unless Commission)
+                 execs.forEach(execName => {
+                     execMap[execName] = (execMap[execName] || 0) + sales;
                  });
-            }
+             } else {
+                 // Optional: Track "Unassigned" sales?
+             }
         });
 
         const execList = Object.entries(execMap)
