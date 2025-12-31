@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 
-type ViewMode = "overview" | "payables" | "receivables" | "stock";
+type ViewMode = "overview" | "payables" | "receivables" | "stock" | "executives";
 
 export default function ProfitLossPage() {
   const supabase = createClient();
@@ -15,12 +15,15 @@ export default function ProfitLossPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [stock, setStock] = useState<any[]>([]);
+  const [executives, setExecutives] = useState<{name: string, sales: number}[]>([]);
 
   // Computed Totals
   const [totals, setTotals] = useState({
     receivables: 0,
     payables: 0,
     stockValue: 0,
+    topExecName: "—",
+    topExecSales: 0,
   });
 
   useEffect(() => {
@@ -34,7 +37,6 @@ export default function ProfitLossPage() {
           .select("id, name, balance")
           .order("balance", { ascending: false });
 
-        // Filter: Receivables only counts positive balances (Owed TO us)
         const rawCust = custData || [];
         const cleanCust = rawCust.map((c: any) => ({
              ...c,
@@ -49,7 +51,6 @@ export default function ProfitLossPage() {
           .select("supplier_id, supplier_name, total_amount");
 
         const supMap: Record<number, { name: string; balance: number }> = {};
-        
         (supTx || []).forEach((tx: any) => {
             const id = tx.supplier_id;
             const amt = Number(tx.total_amount) || 0;
@@ -78,28 +79,20 @@ export default function ProfitLossPage() {
         
         if (liveStock.length > 0) {
             const productIds = liveStock.map(s => s.id);
-            
-            // Fetch ALL purchase prices for these products
             const { data: moves } = await supabase
                 .from("stock_moves")
                 .select("product_id, price_per_unit")
                 .eq("kind", "purchase")
                 .in("product_id", productIds);
 
-            // Calculate Mode Price per Product
             const priceFrequency: Record<number, Record<number, number>> = {};
-            
             (moves || []).forEach((m: any) => {
                 if (!m.product_id || !m.price_per_unit) return;
-                
-                if (!priceFrequency[m.product_id]) {
-                    priceFrequency[m.product_id] = {};
-                }
+                if (!priceFrequency[m.product_id]) priceFrequency[m.product_id] = {};
                 const p = m.price_per_unit;
                 priceFrequency[m.product_id][p] = (priceFrequency[m.product_id][p] || 0) + 1;
             });
 
-            // Determine "most repeated" price for each
             const priceMap: Record<number, number> = {};
             for (const pid of productIds) {
                 const freqs = priceFrequency[pid];
@@ -107,13 +100,10 @@ export default function ProfitLossPage() {
                     priceMap[pid] = 0;
                     continue;
                 }
-                
                 let maxFreq = 0;
                 let modePrice = 0;
-                
                 for (const [priceStr, count] of Object.entries(freqs)) {
                     const countNum = count as number; 
-                    // If higher frequency, usage it. If tie, larger price wins (conservative for value)
                     const priceNum = Number(priceStr);
                     if (countNum > maxFreq || (countNum === maxFreq && priceNum > modePrice)) {
                         maxFreq = countNum;
@@ -123,7 +113,6 @@ export default function ProfitLossPage() {
                 priceMap[pid] = modePrice;
             }
 
-            // Calculate value
             processedStock = liveStock.map(item => {
                 const price = priceMap[item.id] || 0;
                 return {
@@ -135,11 +124,59 @@ export default function ProfitLossPage() {
         }
         setStock(processedStock);
 
-        // 4. COMPUTE GRAND TOTALS
+
+        // 4. EXECUTIVE SALES (New Logic)
+        // Fetch all ledger transactions
+        const { data: ledgerData } = await supabase
+            .from("bill_transaction_ledger")
+            .select("*");
+        
+        const execMap: Record<string, number> = {};
+        const billGroups: Record<string, any[]> = {};
+
+        // Group by Bill No
+        (ledgerData || []).forEach((row: any) => {
+            if (row.bill_no && row.bill_no !== "—") {
+                if (!billGroups[row.bill_no]) billGroups[row.bill_no] = [];
+                billGroups[row.bill_no].push(row);
+            }
+        });
+
+        // Process each bill
+        Object.values(billGroups).forEach(items => {
+            // Find executives
+            const execs = items
+                .filter(i => i.type === "Executive" && i.details)
+                .map(i => i.details as string);
+            
+            // Calculate Bill Net (Sales Only)
+            const billNet = items
+                .filter(i => ["Sale", "Charge", "Discount"].includes(i.type))
+                .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+            // Attribute to executives (shared credit)
+            if (execs.length > 0 && billNet > 0) {
+                 const uniqueExecs = Array.from(new Set(execs));
+                 uniqueExecs.forEach(exec => {
+                     execMap[exec] = (execMap[exec] || 0) + billNet;
+                 });
+            }
+        });
+
+        const execList = Object.entries(execMap)
+            .map(([name, sales]) => ({ name, sales }))
+            .sort((a, b) => b.sales - a.sales);
+        
+        setExecutives(execList);
+
+
+        // 5. COMPUTE GRAND TOTALS
         setTotals({
             receivables: cleanCust.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0),
             payables: supList.reduce((sum, s) => sum + (s.balance || 0), 0),
-            stockValue: processedStock.reduce((sum, s) => sum + s.totalValue, 0)
+            stockValue: processedStock.reduce((sum, s) => sum + s.totalValue, 0),
+            topExecName: execList.length > 0 ? execList[0].name : "—",
+            topExecSales: execList.length > 0 ? execList[0].sales : 0,
         });
 
       } catch (err) {
@@ -167,7 +204,6 @@ export default function ProfitLossPage() {
                 </button>
                 <h1 className="page-title">Total Payables (Suppliers)</h1>
             </div>
-            
             <div className="card mt-6">
                 <table className="db-table">
                     <thead>
@@ -201,7 +237,6 @@ export default function ProfitLossPage() {
               </button>
               <h1 className="page-title">Total Receivables (Customers)</h1>
           </div>
-          
           <div className="card mt-6">
               <table className="db-table">
                   <thead>
@@ -235,7 +270,6 @@ export default function ProfitLossPage() {
               </button>
               <h1 className="page-title">Stock Valuation</h1>
           </div>
-          
           <div className="card mt-6">
               <table className="db-table">
                   <thead>
@@ -262,6 +296,47 @@ export default function ProfitLossPage() {
     );
   }
 
+  // --- VIEW: EXECUTIVES ---
+  if (viewMode === "executives") {
+    return (
+      <div className="page">
+          <div className="page-header flex gap-4 items-center">
+              <button onClick={() => setViewMode("overview")} className="btn-icon">
+                  <ArrowLeftIcon className="w-5 h-5" />
+              </button>
+              <h1 className="page-title">Executive Sales Performance</h1>
+          </div>
+          <div className="card mt-6">
+              <table className="db-table">
+                  <thead>
+                      <tr>
+                          <th>Executive Name</th>
+                          <th className="right">Total Sales Generated</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {executives.map((e, idx) => (
+                          <tr key={idx}>
+                              <td>
+                                  <div className="flex items-center gap-3">
+                                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200">
+                                          {idx + 1}
+                                      </div>
+                                      <span className="font-medium text-gray-900">{e.name}</span>
+                                      {idx === 0 && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full border border-yellow-200">Top Performer</span>}
+                                  </div>
+                              </td>
+                              <td className="right font-bold text-emerald-600">₹{e.sales.toLocaleString("en-IN")}</td>
+                          </tr>
+                      ))}
+                      {executives.length === 0 && <tr><td colSpan={2} className="text-center p-8 text-gray-400">No sales records found</td></tr>}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+    );
+  }
+
   // --- VIEW: OVERVIEW (DASHBOARD) ---
   return (
     <div className="page">
@@ -269,7 +344,7 @@ export default function ProfitLossPage() {
         <h1 className="page-title">Profit & Loss Overview</h1>
       </div>
 
-      <div className="pl-grid">
+      <div className="pl-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
         {/* Card 1: Payables */}
         <div className="pl-card payables">
            <div className="pl-card-content">
@@ -286,12 +361,8 @@ export default function ProfitLossPage() {
                 </div>
                 <div className="pl-card-subtitle">Owed to Suppliers</div>
            </div>
-           
            <div className="pl-card-footer">
-                <button 
-                  onClick={() => setViewMode("payables")}
-                  className="pl-action-btn"
-                >
+                <button onClick={() => setViewMode("payables")} className="pl-action-btn">
                     View Breakdown <span>→</span>
                 </button>
            </div>
@@ -313,10 +384,7 @@ export default function ProfitLossPage() {
                 <div className="pl-card-subtitle">Pending from Customers</div>
            </div>
            <div className="pl-card-footer">
-                <button 
-                  onClick={() => setViewMode("receivables")}
-                  className="pl-action-btn"
-                >
+                <button onClick={() => setViewMode("receivables")} className="pl-action-btn">
                     View Customers <span>→</span>
                 </button>
            </div>
@@ -337,11 +405,35 @@ export default function ProfitLossPage() {
                 <div className="pl-card-subtitle">Current Inventory Worth</div>
            </div>
            <div className="pl-card-footer">
-                <button 
-                  onClick={() => setViewMode("stock")}
-                  className="pl-action-btn"
-                >
+                <button onClick={() => setViewMode("stock")} className="pl-action-btn">
                     Analyze Stock <span>→</span>
+                </button>
+           </div>
+        </div>
+
+        {/* Card 4: Top Executive */}
+        <div className="pl-card executives" style={{ borderLeft: '6px solid #10b981' }}>
+           <div className="pl-card-content">
+                <div className="pl-icon-wrapper" style={{ background: '#ecfdf5', color: '#059669' }}>
+                    <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+                    </svg>
+                </div>
+                <h3 className="pl-card-title">Top Sales Exec</h3>
+                <div className="pl-card-value" style={{ fontSize: '24px' }}>
+                    {totals.topExecName}
+                </div>
+                <div className="pl-card-subtitle text-emerald-600 font-bold">
+                    ₹{totals.topExecSales.toLocaleString("en-IN")}
+                </div>
+           </div>
+           <div className="pl-card-footer">
+                <button 
+                  onClick={() => setViewMode("executives")}
+                  className="pl-action-btn"
+                  style={{ color: '#059669' }}
+                >
+                    View All Staff <span>→</span>
                 </button>
            </div>
         </div>
