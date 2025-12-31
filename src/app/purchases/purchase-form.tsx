@@ -11,8 +11,8 @@ type Row = {
   size: string;
   product: string;
   unit: string;
-  qty: number;
-  price: number;
+  qty: number | "";
+  price: number | "";
 };
 
 type Supplier = {
@@ -50,7 +50,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
 
   /* ---------- Rows ---------- */
   const [rows, setRows] = useState<Row[]>([
-    { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
+    { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
   ]);
 
   /* ---------- Products ---------- */
@@ -113,7 +113,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
+      { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
     ]);
 
   const removeRow = (index: number) => {
@@ -164,7 +164,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     if (!supplierName.trim()) return alert("Enter supplier");
 
     const validRows = rows.filter(
-      (r) => r.product && r.qty > 0 && r.price > 0
+      (r) => r.product && Number(r.qty) > 0 && Number(r.price) > 0
     );
     if (validRows.length === 0) return alert("Add valid items");
 
@@ -220,17 +220,17 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           kind: "purchase",
           supplier_id: supplierId,
           product_id: productId,
-          qty: row.qty,
-          price_per_unit: row.price,
+          qty: Number(row.qty),
+          price_per_unit: Number(row.price),
           bill_no: billNo || null,
           bill_date: billDate || null,
-          ts: new Date().toISOString(), // Fix: Explicitly setting timestamp
+          ts: new Date().toISOString(),
         });
       }
 
       alert("Purchase saved ✅");
       setRows([
-        { material: "Tiles", size: "", product: "", unit: "", qty: 0, price: 0 },
+        { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
       ]);
       setSupplierName("");
       setBillNo("");
@@ -242,7 +242,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     }
   };
 
-  const total = rows.reduce((s, r) => s + r.qty * r.price, 0);
+  const total = rows.reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
 
   /* ================= UI ================= */
 
@@ -381,7 +381,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                     type="number"
                     value={row.qty}
                     onChange={(e) =>
-                      updateRow(i, "qty", Number(e.target.value))
+                      updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
                     }
                   />
                 </td>
@@ -392,13 +392,13 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                     type="number"
                     value={row.price}
                     onChange={(e) =>
-                      updateRow(i, "price", Number(e.target.value))
+                      updateRow(i, "price", e.target.value === "" ? "" : Number(e.target.value))
                     }
                   />
                 </td>
 
                 <td style={{ textAlign: "right" }}>
-                  ₹{(row.qty * row.price).toFixed(2)}
+                  ₹{((Number(row.qty) || 0) * (Number(row.price) || 0)).toFixed(2)}
                 </td>
 
                 <td>
