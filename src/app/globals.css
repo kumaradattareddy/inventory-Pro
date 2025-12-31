@@ -836,3 +836,136 @@ body {
 .db-amount.minus {
   color: #dc2626;
 }
+
+/* =========================================
+   PROFIT & LOSS PAGE STYLES (.pl-*)
+   ========================================= */
+
+.pl-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 24px;
+  margin-top: 32px;
+}
+
+@media (min-width: 1024px) {
+  .pl-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.pl-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  border: 1px solid #e5e7eb;
+  border-left-width: 0; 
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease-in-out;
+}
+
+.pl-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+/* Specific Card Colors */
+.pl-card.payables {
+  border-left: 6px solid #ef4444; 
+}
+.pl-card.receivables {
+  border-left: 6px solid #3b82f6; 
+}
+.pl-card.stock {
+  border-left: 6px solid #a855f7; 
+}
+
+.pl-card-content {
+  padding: 24px;
+  padding-bottom: 80px; 
+  flex: 1;
+}
+
+.pl-icon-wrapper {
+  display: inline-flex;
+  padding: 10px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.pl-card.payables .pl-icon-wrapper { background: #fef2f2; color: #dc2626; }
+.pl-card.receivables .pl-icon-wrapper { background: #eff6ff; color: #2563eb; }
+.pl-card.stock .pl-icon-wrapper { background: #f3e8ff; color: #9333ea; }
+
+.pl-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.pl-card-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
+  font-feature-settings: "tnum";
+}
+
+.pl-card-subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-top: 6px;
+}
+
+.pl-card-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: #f9fafb;
+  border-top: 1px solid #f3f4f6;
+}
+
+.pl-action-btn {
+  width: 100%;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 6px;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pl-card.payables .pl-action-btn { color: #dc2626; }
+.pl-card.payables .pl-action-btn:hover { background: #fef2f2; }
+
+.pl-card.receivables .pl-action-btn { color: #2563eb; }
+.pl-card.receivables .pl-action-btn:hover { background: #eff6ff; }
+
+.pl-card.stock .pl-action-btn { color: #9333ea; }
+.pl-card.stock .pl-action-btn:hover { background: #f3e8ff; }
+
+.pl-table-container {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  margin-top: 24px;
+}
+
