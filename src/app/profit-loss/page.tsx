@@ -44,7 +44,6 @@ export default function ProfitLossPage() {
 
 
         // 2. SUPPLIERS (Payables)
-        // We need to aggregate transactions per supplier
         const { data: supTx } = await supabase
           .from("supplier_transactions" as any)
           .select("supplier_id, supplier_name, total_amount");
@@ -60,7 +59,6 @@ export default function ProfitLossPage() {
             supMap[id].balance += amt;
         });
 
-        // Convert map to array
         const supList = Object.entries(supMap).map(([id, val]) => ({
             id: Number(id),
             name: val.name,
@@ -69,33 +67,61 @@ export default function ProfitLossPage() {
         setSuppliers(supList);
 
 
-        // 3. STOCK VALUE
+        // 3. STOCK VALUE (Mode Price Logic)
         const { data: stockData } = await supabase
           .from("product_stock_live" as any)
           .select("id, name, current_stock")
-          .gt("current_stock", 0); // Ignore 0 or negative stock
+          .gt("current_stock", 0);
 
         const liveStock = (stockData || []) as any[];
         let processedStock: any[] = [];
         
         if (liveStock.length > 0) {
             const productIds = liveStock.map(s => s.id);
-            // Fetch latest purchase price for these products
+            
+            // Fetch ALL purchase prices for these products
             const { data: moves } = await supabase
                 .from("stock_moves")
-                .select("product_id, price_per_unit, ts")
+                .select("product_id, price_per_unit")
                 .eq("kind", "purchase")
-                .in("product_id", productIds)
-                .order("ts", { ascending: false });
+                .in("product_id", productIds);
 
-            // Map: ProductID -> Last Price
-            const priceMap: Record<number, number> = {};
+            // Calculate Mode Price per Product
+            const priceFrequency: Record<number, Record<number, number>> = {};
+            
             (moves || []).forEach((m: any) => {
-                // First one found is the latest due to sort
-                if (m.product_id && priceMap[m.product_id] === undefined && m.price_per_unit) {
-                    priceMap[m.product_id] = m.price_per_unit;
+                if (!m.product_id || !m.price_per_unit) return;
+                
+                if (!priceFrequency[m.product_id]) {
+                    priceFrequency[m.product_id] = {};
                 }
+                const p = m.price_per_unit;
+                priceFrequency[m.product_id][p] = (priceFrequency[m.product_id][p] || 0) + 1;
             });
+
+            // Determine "most repeated" price for each
+            const priceMap: Record<number, number> = {};
+            for (const pid of productIds) {
+                const freqs = priceFrequency[pid];
+                if (!freqs) {
+                    priceMap[pid] = 0;
+                    continue;
+                }
+                
+                let maxFreq = 0;
+                let modePrice = 0;
+                
+                for (const [priceStr, count] of Object.entries(freqs)) {
+                    const countNum = count as number; 
+                    // If higher frequency, usage it. If tie, larger price wins (conservative for value)
+                    const priceNum = Number(priceStr);
+                    if (countNum > maxFreq || (countNum === maxFreq && priceNum > modePrice)) {
+                        maxFreq = countNum;
+                        modePrice = priceNum;
+                    }
+                }
+                priceMap[pid] = modePrice;
+            }
 
             // Calculate value
             processedStock = liveStock.map(item => {
@@ -105,14 +131,14 @@ export default function ProfitLossPage() {
                     price: price,
                     totalValue: (Number(item.current_stock) * price)
                 };
-            }).sort((a, b) => b.totalValue - a.totalValue); // Rank by most valuable
+            }).sort((a, b) => b.totalValue - a.totalValue);
         }
         setStock(processedStock);
 
         // 4. COMPUTE GRAND TOTALS
         setTotals({
             receivables: cleanCust.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0),
-            payables: supList.reduce((sum, s) => sum + (s.balance || 0), 0), // Assuming positive sum = we owe them
+            payables: supList.reduce((sum, s) => sum + (s.balance || 0), 0),
             stockValue: processedStock.reduce((sum, s) => sum + s.totalValue, 0)
         });
 
@@ -166,7 +192,6 @@ export default function ProfitLossPage() {
 
   // --- VIEW: RECEIVABLES ---
   if (viewMode === "receivables") {
-    // Only show customers with positive balance (Owings)
     const debtors = customers.filter(c => c.balance > 0).sort((a, b) => b.balance - a.balance);
     return (
       <div className="page">
@@ -217,7 +242,7 @@ export default function ProfitLossPage() {
                       <tr>
                           <th>Product</th>
                           <th className="right">Qty</th>
-                          <th className="right">Last Cost Price</th>
+                          <th className="right">Most Common Cost</th>
                           <th className="right">Total Value</th>
                       </tr>
                   </thead>
@@ -247,11 +272,10 @@ export default function ProfitLossPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
         {/* Card 1: Payables */}
         <div className="db-card flex flex-col justify-between hover:shadow-lg transition-shadow border-l-4 border-l-red-500 overflow-visible relative">
-           {/* Content */}
            <div className="p-6 pb-20">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-red-50 rounded-lg text-red-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
                             <path fillRule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v9.75c0 1.036-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 14.625v-9.75ZM8.25 9.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM18.75 9a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75V9.75a.75.75 0 0 0-.75-.75h-.008ZM4.5 9.75A.75.75 0 0 1 5.25 9h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V9.75Z" clipRule="evenodd" />
                             <path d="M2.25 18a.75.75 0 0 0 0 1.5c5.4 0 10.63.722 15.6 2.075 1.19.324 2.4-.558 2.4-1.82V18.75a.75.75 0 0 0-.75-.75H2.25Z" />
@@ -265,7 +289,6 @@ export default function ProfitLossPage() {
                 <div className="text-sm font-medium text-gray-400 mt-2">Owed to Suppliers</div>
            </div>
            
-           {/* Action/Footer */}
            <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50/50">
                 <button 
                   onClick={() => setViewMode("payables")}
@@ -281,7 +304,7 @@ export default function ProfitLossPage() {
            <div className="p-6 pb-20">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4.5 3.75a3 3 0 0 0-3 3v.75h21v-.75a3 3 0 0 0-3-3h-15Z" />
                             <path fillRule="evenodd" d="M22.5 9.75h-21v7.5a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-7.5Zm-18 3.75a.75.75 0 0 1 .75-.75h6a.75.75 0 0 1 0 1.5h-6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" clipRule="evenodd" />
                         </svg>
@@ -308,7 +331,7 @@ export default function ProfitLossPage() {
            <div className="p-6 pb-20">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                        <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                             <path fillRule="evenodd" d="M7.5 6v.75H5.513c-.96 0-1.764.724-1.865 1.679l-1.263 12A1.875 1.875 0 0 0 4.25 22.5h15.5a1.875 1.875 0 0 0 1.865-2.071l-1.263-12a1.875 1.875 0 0 0-1.865-1.679H16.5V6a4.5 4.5 0 1 0-9 0ZM12 3a3 3 0 0 0-3 3v.75h6V6a3 3 0 0 0-3-3Zm-3 8.25a3 3 0 1 0 6 0v-.75a.75.75 0 0 1 1.5 0v.75a4.5 4.5 0 1 1-9 0v-.75a.75.75 0 0 1 1.5 0v.75Z" clipRule="evenodd" />
                         </svg>
                     </div>
