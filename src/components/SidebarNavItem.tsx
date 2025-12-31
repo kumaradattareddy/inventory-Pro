@@ -9,6 +9,7 @@ import {
   ShoppingCartIcon,
   BanknotesIcon,
   DocumentTextIcon,
+  PresentationChartLineIcon,
 } from '@heroicons/react/24/outline'
 
 export function SidebarNavItem({
@@ -17,7 +18,7 @@ export function SidebarNavItem({
   children,
 }: {
   href: string
-  icon: 'cube' | 'users' | 'purchases' | 'sales' | 'customers' | 'advances' | 'bills'
+  icon: 'cube' | 'users' | 'purchases' | 'sales' | 'customers' | 'advances' | 'bills' | 'stats'
   children: string
 }) {
   const pathname = usePathname()
@@ -36,6 +37,8 @@ export function SidebarNavItem({
       ? BanknotesIcon
       : icon === 'bills'
       ? DocumentTextIcon
+      : icon === 'stats'
+      ? PresentationChartLineIcon
       : CubeIcon // Default icon
 
 
