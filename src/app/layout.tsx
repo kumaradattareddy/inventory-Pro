@@ -43,6 +43,9 @@ export default function RootLayout({
             <SidebarNavItem href="/profit-loss" icon="stats">
               Profit & Loss
             </SidebarNavItem>
+            <SidebarNavItem href="/payouts" icon="payouts">
+              Payouts
+            </SidebarNavItem>
             
           </nav>
         </aside>
