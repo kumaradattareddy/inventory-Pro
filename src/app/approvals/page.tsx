@@ -43,7 +43,7 @@ export default function ApprovalsPage() {
 
   const confirmReject = async () => {
     if (!viewData) return;
-    if (!confirm("Final Confirmation: permanently reject this sale?")) return;
+    // User already confirmed via the modal button click
 
     try {
       const res = await fetch(`/api/sales-approvals/${viewData.id}`, {
@@ -113,6 +113,84 @@ export default function ApprovalsPage() {
           </table>
         </div>
       </div>
+
+      {loadingView && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded shadow">Loading items...</div>
+        </div>
+      )}
+
+      {viewData && viewData.sale_data && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+              <h3 className="font-bold text-lg">Reject Sale: Bill #{viewData.sale_data.billNo}</h3>
+              <button onClick={() => setViewData(null)} className="text-gray-500 hover:text-black text-xl">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Customer:</span>
+                  <div className="font-medium">{viewData.sale_data.customerName}</div>
+                </div>
+                <div>
+                  <span className="text-gray-500">Date:</span>
+                  <div className="font-medium">{viewData.sale_data.billDate}</div>
+                </div>
+              </div>
+
+              <h4 className="font-semibold mb-2">Items</h4>
+              <table className="w-full text-sm border-collapse border border-gray-200">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border p-2 text-left">Product</th>
+                    <th className="border p-2 text-right">Qty</th>
+                    <th className="border p-2 text-right">Rate</th>
+                    <th className="border p-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewData.sale_data.rows || []).map((row: any, i: number) => (
+                    <tr key={i}>
+                      <td className="border p-2">
+                         {row.product || row.productName} 
+                         {row.size ? ` (${row.size})` : ""}
+                      </td>
+                      <td className="border p-2 text-right">{row.qty}</td>
+                      <td className="border p-2 text-right">{row.rate}</td>
+                      <td className="border p-2 text-right">
+                        {((Number(row.qty) || 0) * (Number(row.rate) || 0)).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              <div className="mt-4 text-right font-bold text-lg">
+                 Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString()}
+              </div>
+            </div>
+
+            <div className="p-4 border-t bg-gray-50 rounded-b-lg flex justify-end gap-3">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setViewData(null)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger"
+                onClick={confirmReject}
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
