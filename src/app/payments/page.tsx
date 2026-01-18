@@ -52,7 +52,6 @@ export default function AccountsPartiesPage() {
 
     setSaving(true);
     try {
-      // Append Ref No to Notes if present
       const finalNotes = refNo ? `${notes} [${method} Ref: ${refNo}]` : notes;
 
       const payload = {
@@ -89,73 +88,112 @@ export default function AccountsPartiesPage() {
 
   // Derived Properties
   const isPay = mode === 'out';
-  const themeColor = isPay ? "green" : "rose";
-  const btnColor = isPay ? "bg-green-600 hover:bg-green-700" : "bg-rose-600 hover:bg-rose-700";
-  const lightBg = isPay ? "bg-green-50" : "bg-rose-50";
-  const borderColor = isPay ? "border-green-200" : "border-rose-200";
+  const mainColor = isPay ? "#16a34a" : "#e11d48"; // Green vs Rose
+  const bgColor = isPay ? "#f0fdf4" : "#fff1f2"; // Light Green vs Light Rose
+  const borderColor = isPay ? "#bbf7d0" : "#fecdd3";
 
   return (
-    <div className="page max-w-2xl mx-auto py-8">
+    <div className="page" style={{ maxWidth: "700px", margin: "0 auto", paddingBottom: "40px" }}>
       
       {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Accounts - Parties</h1>
-        <p className="text-gray-500 mt-2">Manage payments and balance adjustments for suppliers.</p>
+      <div style={{ textAlign: "center", marginBottom: "32px", marginTop: "16px" }}>
+        <h1 className="page-title" style={{ fontSize: "28px", marginBottom: "8px" }}>Accounts - Parties</h1>
+        <p style={{ color: "#6b7280", margin: 0 }}>Manage payments and adjustments for suppliers.</p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+      <div className="card" style={{ overflow: "hidden", border: "1px solid #e5e7eb", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)" }}>
         
         {/* Toggle Switch */}
-        <div className="bg-gray-100 p-1.5 flex gap-1 m-4 rounded-xl">
-          <button
-            onClick={() => setMode("out")}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all ${
-              isPay 
-                ? "bg-white text-green-700 shadow-sm" 
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            ⬆ PAY (Out)
-          </button>
-          <button
-            onClick={() => setMode("in")}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all ${
-              !isPay 
-                ? "bg-white text-rose-600 shadow-sm" 
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            ⬇ RECEIVE (In)
-          </button>
+        <div style={{ background: "#f3f4f6", padding: "6px", display: "flex", gap: "6px", margin: "20px", borderRadius: "12px" }}>
+           <button
+             onClick={() => setMode("out")}
+             style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: "8px",
+                border: "none",
+                fontWeight: "700",
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                background: isPay ? "white" : "transparent",
+                color: isPay ? "#15803d" : "#6b7280",
+                boxShadow: isPay ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+             }}
+           >
+             ⬆ PAY (Out)
+           </button>
+           <button
+             onClick={() => setMode("in")}
+             style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: "8px",
+                border: "none",
+                fontWeight: "700",
+                fontSize: "14px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                background: !isPay ? "white" : "transparent",
+                color: !isPay ? "#be123c" : "#6b7280",
+                boxShadow: !isPay ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+             }}
+           >
+             ⬇ RECEIVE (In)
+           </button>
         </div>
 
-        {/* Dynamic Context Banner */}
-        <div className={`mx-6 mb-6 p-4 rounded-xl border ${lightBg} ${borderColor} flex gap-3 items-start`}>
-            <div className={`text-2xl ${isPay ? "text-green-600" : "text-rose-600"}`}>
-                {isPay ? "💸" : "💰"}
-            </div>
+        {/* Context Banner */}
+        <div style={{ 
+            margin: "0 24px 24px", 
+            padding: "16px", 
+            borderRadius: "12px", 
+            background: bgColor, 
+            border: `1px solid ${borderColor}`,
+            display: "flex",
+            gap: "12px",
+            alignItems: "flex-start"
+        }}>
+            <div style={{ fontSize: "24px", lineHeight: 1 }}>{isPay ? "💸" : "💰"}</div>
             <div>
-                <h3 className={`font-bold text-sm uppercase tracking-wide ${isPay ? "text-green-800" : "text-rose-800"}`}>
+                <h3 style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "700", color: isPay ? "#166534" : "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     {isPay ? "Recording Payment Made" : "Recording Money Received"}
                 </h3>
-                <p className={`text-sm ${isPay ? "text-green-700" : "text-rose-700"} opacity-90 leading-snug mt-1`}>
+                <p style={{ margin: 0, fontSize: "14px", color: isPay ? "#15803d" : "#be123c", opacity: 0.9 }}>
                     {isPay 
                      ? "You are paying the supplier. This will DECREASE the amount you owe them." 
-                     : "You are receiving money (or credit). This will INCREASE the amount you owe them."}
+                     : "You are receiving money. This will INCREASE the amount you owe (or add a charge)."}
                 </p>
             </div>
         </div>
 
-        <div className="px-8 pb-8 space-y-6">
+        <div style={{ padding: "0 32px 32px", display: "flex", flexDirection: "column", gap: "24px" }}>
 
           {/* Amount Box */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Transaction Amount (₹)</label>
-            <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-2xl font-light">₹</span>
+            <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>
+                Transaction Amount (₹)
+            </label>
+            <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "24px", color: "#9ca3af", fontWeight: 300 }}>₹</span>
                 <input
                     type="text"
-                    className="w-full pl-10 pr-4 py-4 text-3xl font-bold text-gray-800 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                    className="form-input"
+                    style={{ 
+                        paddingLeft: "40px", 
+                        paddingRight: "16px", 
+                        paddingTop: "16px", 
+                        paddingBottom: "16px",
+                        height: "auto", 
+                        fontSize: "28px", 
+                        fontWeight: "700", 
+                        color: "#1f2937",
+                        borderRadius: "12px",
+                        background: "#f9fafb",
+                        border: "1px solid transparent"
+                    }}
+                    onFocus={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#3b82f6"; }}
+                    onBlur={(e) => { e.currentTarget.style.background = "#f9fafb"; e.currentTarget.style.borderColor = "transparent"; }}
                     placeholder="0.00"
                     value={amount}
                     onChange={(e) => handleNum(e.target.value)}
@@ -165,9 +203,12 @@ export default function AccountsPartiesPage() {
 
           {/* Party Selection */}
           <div>
-             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select Party / Supplier</label>
+             <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>
+                Select Party / Supplier
+             </label>
              <select 
-                className="w-full h-12 px-4 bg-white border border-gray-300 rounded-xl text-gray-700 text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all appearance-none cursor-pointer"
+                className="form-select"
+                style={{ height: "48px", fontSize: "16px" }}
                 value={partyName} 
                 onChange={(e) => setPartyName(e.target.value)}
               >
@@ -178,12 +219,13 @@ export default function AccountsPartiesPage() {
               </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-5">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
              {/* Payment Method */}
              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Method</label>
+                <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>Method</label>
                 <select
-                  className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  className="form-select"
+                  style={{ height: "44px" }}
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
                 >
@@ -196,10 +238,11 @@ export default function AccountsPartiesPage() {
 
              {/* Date */}
              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Date</label>
+                <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>Date</label>
                 <input
                   type="date"
-                  className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  className="form-input"
+                  style={{ height: "44px" }}
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
@@ -207,11 +250,12 @@ export default function AccountsPartiesPage() {
           </div>
 
           {(method === "UPI" || method === "Cheque") && (
-            <div className="animate-fade-in-down">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{method} Reference No.</label>
+            <div style={{ animation: "fadeIn 0.3s ease-in-out" }}>
+                <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>{method} Reference No.</label>
                 <input
                     type="text"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    className="form-input"
+                    style={{ height: "44px", background: "#f9fafb" }}
                     placeholder={`Enter ${method} Transaction ID / Check No.`}
                     value={refNo}
                     onChange={(e) => setRefNo(e.target.value)}
@@ -221,9 +265,10 @@ export default function AccountsPartiesPage() {
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Notes (Optional)</label>
+            <label className="form-label" style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "8px" }}>Notes (Optional)</label>
             <textarea
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-y min-h-[80px]"
+                className="form-input"
+                style={{ height: "auto", minHeight: "80px", resize: "vertical" }}
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -233,9 +278,25 @@ export default function AccountsPartiesPage() {
 
           {/* Action Button */}
           <button
-            className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transform transition-all active:scale-[0.98] active:shadow-none hover:shadow-xl ${btnColor} ${saving ? "opacity-70 cursor-wait" : ""}`}
+            style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "12px",
+                border: "none",
+                background: mainColor,
+                color: "white",
+                fontSize: "18px",
+                fontWeight: "700",
+                cursor: saving ? "wait" : "pointer",
+                opacity: saving ? 0.7 : 1,
+                boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                transition: "transform 0.1s"
+            }}
             onClick={saveTransaction}
             disabled={saving}
+            onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
+            onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
           >
             {saving ? "Processing..." : isPay ? "Confirm Payment (Minus)" : "Confirm Receipt (Add)"}
           </button>
@@ -243,11 +304,18 @@ export default function AccountsPartiesPage() {
         </div>
       </div>
       
-      {/* Quick Footer Links */}
-      <div className="text-center mt-8 space-x-6 text-sm text-gray-400">
-        <span>Need to add a new party?</span>
-        <a href="/parties" className="text-blue-600 hover:text-blue-800 font-medium underline">Manage Parties</a>
+      {/* Footer */}
+      <div style={{ textAlign: "center", marginTop: "32px", fontSize: "14px", color: "#9ca3af" }}>
+        <span style={{ marginRight: "6px" }}>Need to add a new party?</span>
+        <a href="/parties" style={{ color: "#2563eb", fontWeight: 600, textDecoration: "none" }}>Manage Parties</a>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
     </div>
   );
