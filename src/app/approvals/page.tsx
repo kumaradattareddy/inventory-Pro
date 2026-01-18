@@ -127,47 +127,51 @@ export default function ApprovalsPage() {
       )}
 
       {viewData && viewData.sale_data && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-              <h3 className="font-bold text-lg">Reject Sale: Bill #{viewData.sale_data.billNo}</h3>
-              <button onClick={() => setViewData(null)} className="text-gray-500 hover:text-black text-xl">
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', width: '100%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            
+            <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9fafb' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '1.125rem', margin: 0 }}>Reject Sale: Bill #{viewData.sale_data.billNo}</h3>
+              <button 
+                onClick={() => setViewData(null)} 
+                style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#6b7280' }}
+              >
                 ✕
               </button>
             </div>
             
-            <div className="p-4 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+            <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', fontSize: '0.875rem' }}>
                 <div>
-                  <span className="text-gray-500">Customer:</span>
-                  <div className="font-medium">{viewData.sale_data.customerName}</div>
+                  <span style={{ color: '#6b7280', display: 'block' }}>Customer:</span>
+                  <div style={{ fontWeight: 500 }}>{viewData.sale_data.customerName}</div>
                 </div>
                 <div>
-                  <span className="text-gray-500">Date:</span>
-                  <div className="font-medium">{viewData.sale_data.billDate}</div>
+                  <span style={{ color: '#6b7280', display: 'block' }}>Date:</span>
+                  <div style={{ fontWeight: 500 }}>{viewData.sale_data.billDate}</div>
                 </div>
               </div>
 
-              <h4 className="font-semibold mb-2">Items</h4>
-              <table className="w-full text-sm border-collapse border border-gray-200">
-                <thead className="bg-gray-100">
+              <h4 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem' }}>Items</h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', border: '1px solid #e5e7eb' }}>
+                <thead style={{ backgroundColor: '#f3f4f6' }}>
                   <tr>
-                    <th className="border p-2 text-left">Product</th>
-                    <th className="border p-2 text-right">Qty</th>
-                    <th className="border p-2 text-right">Rate</th>
-                    <th className="border p-2 text-right">Total</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Product</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Qty</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Rate</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(viewData.sale_data.rows || []).map((row: any, i: number) => (
                     <tr key={i}>
-                      <td className="border p-2">
+                      <td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>
                          {row.product || row.productName} 
                          {row.size ? ` (${row.size})` : ""}
                       </td>
-                      <td className="border p-2 text-right">{row.qty}</td>
-                      <td className="border p-2 text-right">{row.rate}</td>
-                      <td className="border p-2 text-right">
+                      <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.qty}</td>
+                      <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.rate}</td>
+                      <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>
                         {((Number(row.qty) || 0) * (Number(row.rate) || 0)).toFixed(2)}
                       </td>
                     </tr>
@@ -175,12 +179,12 @@ export default function ApprovalsPage() {
                 </tbody>
               </table>
               
-              <div className="mt-4 text-right font-bold text-lg">
+              <div style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.125rem' }}>
                  Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString()}
               </div>
             </div>
 
-            <div className="p-4 border-t bg-gray-50 rounded-b-lg flex justify-end gap-3">
+            <div style={{ padding: '16px', borderTop: '1px solid #e5e7eb', backgroundColor: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button 
                 className="btn btn-secondary"
                 onClick={() => setViewData(null)}
