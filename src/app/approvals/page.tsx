@@ -15,12 +15,50 @@ export default function ApprovalsPage() {
   const [rows, setRows] = useState<Approval[]>([]);
   const router = useRouter();
 
+  const [viewData, setViewData] = useState<any>(null);
+  const [loadingView, setLoadingView] = useState(false);
+
   useEffect(() => {
     fetch("/api/sales-approvals")
       .then((r) => r.json())
       .then(setRows)
       .catch(console.error);
   }, []);
+
+  const handleInitialReject = async (id: number) => {
+    if (!confirm("Start rejection process for this bill?")) return;
+    
+    setLoadingView(true);
+    try {
+      const res = await fetch(`/api/sales-approvals/${id}`);
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setViewData({ ...data, id }); // ensure ID is passed
+    } catch (e) {
+      alert("Error loading details");
+    } finally {
+      setLoadingView(false);
+    }
+  };
+
+  const confirmReject = async () => {
+    if (!viewData) return;
+    if (!confirm("Final Confirmation: permanently reject this sale?")) return;
+
+    try {
+      const res = await fetch(`/api/sales-approvals/${viewData.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setRows((prev) => prev.filter((r) => r.id !== viewData.id));
+        setViewData(null);
+      } else {
+        alert("Failed to reject");
+      }
+    } catch (e) {
+      alert("Network error");
+    }
+  };
 
   return (
     <div className="page">
@@ -48,14 +86,18 @@ export default function ApprovalsPage() {
                   <td>{r.customer_name}</td>
                   <td>₹{r.total_amount}</td>
                   <td>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() =>
-                        router.push(`/approvals/${r.id}`)
-                      }
-                    >
-                      Open
-                    </button>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => router.push(`/approvals/${r.id}`)}
+                      >
+                        Open
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm ml-2"
+                        onClick={() => handleInitialReject(r.id)}
+                      >
+                        Reject
+                      </button>
                   </td>
                 </tr>
               ))}
