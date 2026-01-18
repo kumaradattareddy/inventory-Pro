@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 
-export default function AdjustmentsPage() {
-  const [mode, setMode] = useState<"in" | "out" | "adj_debit" | "adj_credit">("in");
+export default function AccountsPartiesPage() {
+  const [mode, setMode] = useState<"in" | "out">("out"); // Default to 'out' (Paying supplier)
   
   // Form State
   const [partyName, setPartyName] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [method, setMethod] = useState("Cash");
+  const [refNo, setRefNo] = useState(""); // For UPI/Cheque number
   const [notes, setNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -41,15 +42,25 @@ export default function AdjustmentsPage() {
       alert("Please select a Party and enter a valid Amount.");
       return;
     }
+    
+    // Validation for UPI/Cheque
+    if ((method === "UPI" || method === "Cheque") && !refNo.trim()) {
+      alert(`Please enter the ${method} Number.`);
+      return;
+    }
+
     setSaving(true);
     try {
+      // Append Ref No to Notes if present
+      const finalNotes = refNo ? `${notes} [${method} Ref: ${refNo}]` : notes;
+
       const payload = {
-        type: mode,
+        type: mode, 
         partyName,
         amount: parseFloat(amount),
         date,
-        method: mode.startsWith("adj") ? null : method, // No method for adjustments
-        notes,
+        method,
+        notes: finalNotes,
       };
 
       const res = await fetch("/api/payments", {
@@ -62,7 +73,8 @@ export default function AdjustmentsPage() {
         alert("✅ Transaction saved successfully!");
         setAmount("");
         setNotes("");
-        // Keep party selected or clear? Usually keep for rapid entry, but user can change.
+        setRefNo("");
+        // Keep party selected
       } else {
         const d = await res.json();
         alert("❌ Error: " + (d.error || "Unknown"));
@@ -74,44 +86,59 @@ export default function AdjustmentsPage() {
     }
   }
 
+  // Styles for tabs
+  const tabStyle = (active: boolean, color: string) => ({
+    flex: 1,
+    padding: '16px',
+    textAlign: 'center' as const,
+    cursor: 'pointer',
+    borderBottom: active ? `4px solid ${color}` : '4px solid transparent',
+    backgroundColor: active ? (color === '#10b981' ? '#ecfdf5' : '#fee2e2') : 'transparent',
+    color: active ? (color === '#10b981' ? '#047857' : '#b91c1c') : '#6b7280',
+    fontWeight: 600,
+    fontSize: '1.1rem',
+    transition: 'all 0.2s'
+  });
+
   return (
-    <div className="page max-w-4xl mx-auto">
+    <div className="page max-w-3xl mx-auto">
       <div className="page-header mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Accounts - Parties</h1>
         <p className="text-gray-500">Manage Party Dues & Payments</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        {/* Tabs */}
+        {/* Simplified Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
-          <div onClick={() => setMode("in")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'in' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'in' ? '#eff6ff' : 'transparent', color: mode === 'in' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
-            ⬇ Receive (In)
+          <div 
+            onClick={() => setMode("out")} 
+            style={tabStyle(mode === 'out', '#10b981')}
+          >
+            ⬆ Pay (Minus / Out)
           </div>
-          <div onClick={() => setMode("out")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'out' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'out' ? '#eff6ff' : 'transparent', color: mode === 'out' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
-            ⬆ Pay (Out)
-          </div>
-          <div onClick={() => setMode("adj_debit")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'adj_debit' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'adj_debit' ? '#eff6ff' : 'transparent', color: mode === 'adj_debit' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
-            ➕ Add Charge
-          </div>
-          <div onClick={() => setMode("adj_credit")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'adj_credit' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'adj_credit' ? '#eff6ff' : 'transparent', color: mode === 'adj_credit' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
-            ➖ Add Discount
+          <div 
+            onClick={() => setMode("in")} 
+            style={tabStyle(mode === 'in', '#ef4444')} 
+          >
+            ⬇ Receive (Add / In)
           </div>
         </div>
 
         {/* Form Body */}
         <div className="p-8 grid gap-6">
-          <div className="p-4 rounded-lg bg-gray-50 border border-gray-100 text-sm text-gray-700 mb-2">
-            {mode === "in" && "Recording money RECEIVED FROM a Customer. Increases cash, Reduces their balance."}
-            {mode === "out" && "Recording money PAID TO a Party (Customer/Vendor). Reduces cash, Increases their balance (if customer)."}
-            {mode === "adj_debit" && "Adding a CHARGE to a Customer (e.g. Penalty, Old Balance). No cash movement. Increases their balance."}
-            {mode === "adj_credit" && "Giving a DISCOUNT/WAIVER to a Customer. No cash movement. Reduces their balance."}
+          <div className={`p-4 rounded-lg border text-sm mb-2 ${mode === 'out' ? 'bg-green-50 border-green-100 text-green-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+            {mode === "out" 
+              ? "✅ You are PAYING the supplier. This will DECREASE the amount you owe them." 
+              : "⚠️ You are RECEIVING money (or adding a charge). This will INCREASE the amount you owe them (or reduce their credit)."
+            }
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid gap-6">
+            {/* Row 1: Party */}
             <div>
-              <label className="form-label">Select Party / Customer</label>
+              <label className="form-label text-base">Select Party / Supplier</label>
               <select 
-                className="form-select w-full" 
+                className="form-select w-full text-lg p-3" 
                 value={partyName} 
                 onChange={(e) => setPartyName(e.target.value)}
               >
@@ -122,31 +149,34 @@ export default function AdjustmentsPage() {
               </select>
             </div>
 
-            <div>
-              <label className="form-label">Amount (₹)</label>
-              <input
-                className="form-input text-lg font-bold"
-                value={amount}
-                onChange={(e) => handleNum(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div>
-              <label className="form-label">Date</label>
-              <input
-                type="date"
-                className="form-input"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-
-            {!mode.startsWith("adj") && (
+            {/* Row 2: Amount & Date */}
+            <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="form-label">Payment Method</label>
+                <label className="form-label text-base">Amount (₹)</label>
+                <input
+                  className="form-input text-xl font-bold"
+                  value={amount}
+                  onChange={(e) => handleNum(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="form-label text-base">Date</label>
+                <input
+                  type="date"
+                  className="form-input text-lg"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Row 3: Method & Ref */}
+            <div className="grid grid-cols-2 gap-6">
+               <div>
+                <label className="form-label text-base">Payment Method</label>
                 <select
-                  className="form-select"
+                  className="form-select text-lg"
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
                 >
@@ -156,29 +186,43 @@ export default function AdjustmentsPage() {
                   <option>Bank Transfer</option>
                 </select>
               </div>
-            )}
+              
+              {(method === "UPI" || method === "Cheque") && (
+                <div>
+                   <label className="form-label text-base">{method} Number / Ref</label>
+                   <input
+                    className="form-input text-lg"
+                    value={refNo}
+                    onChange={(e) => setRefNo(e.target.value)}
+                    placeholder={`Enter ${method} No.`}
+                   />
+                </div>
+              )}
+            </div>
 
-            <div className="md:col-span-2">
-              <label className="form-label">Notes / Reference</label>
-              <input
-                className="form-input"
+            {/* Row 4: Notes */}
+            <div>
+              <label className="form-label text-base">Notes / Reason</label>
+              <textarea
+                className="form-input w-full"
+                rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder={
-                  mode.startsWith("adj") ? "Reason for adjustment..." : "Bill No, Transaction ID, etc."
-                }
+                placeholder="E.g. Bill Payment, Discount, Adjustment..."
               />
             </div>
           </div>
 
           <button
-            className={`w-full py-3 mt-4 rounded-lg text-white font-bold text-lg transition-transform active:scale-[0.98] ${
-              saving ? "bg-gray-400 cursor-not-allowed" : "bg-black hover:bg-gray-800"
+            className={`w-full py-4 mt-2 rounded-lg text-white font-bold text-xl shadow-lg transition-transform active:scale-[0.98] ${
+              saving 
+                ? "bg-gray-400 cursor-not-allowed" 
+                : mode === 'out' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
             }`}
             onClick={saveTransaction}
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save Transaction"}
+            {saving ? "Saving..." : mode === 'out' ? "Record Payment (Minus)" : "Record Receipt (Add)"}
           </button>
         </div>
       </div>
