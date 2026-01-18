@@ -151,15 +151,34 @@ export async function POST(req: Request) {
     if (Array.isArray(payouts)) {
       for (const p of payouts) {
         if (p.amount > 0 && p.recipientName?.trim()) {
-          payments.push({
-            ts,
-            party_type: "others",
-            direction: "out",
-            amount: p.amount,
-            method: "cash",
-            other_name: p.recipientName,
-            bill_no: billNo,
-          });
+          // Attempt to find if this recipient is actually a tracked Party/Customer
+          const { data: party } = await supabase
+            .from("customers")
+            .select("id")
+            .eq("name", p.recipientName.trim())
+            .maybeSingle();
+
+          if (party) {
+            payments.push({
+              ts,
+              party_type: "customer",
+              customer_id: party.id,
+              direction: "out",
+              amount: p.amount,
+              method: "cash",
+              bill_no: billNo,
+            });
+          } else {
+            payments.push({
+              ts,
+              party_type: "others",
+              direction: "out",
+              amount: p.amount,
+              method: "cash",
+              other_name: p.recipientName,
+              bill_no: billNo,
+            });
+          }
         }
       }
     }

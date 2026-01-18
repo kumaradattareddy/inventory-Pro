@@ -37,8 +37,8 @@ export default function RootLayout({
             <SidebarNavItem href="/approvals" icon="approvals">
               Approvals
             </SidebarNavItem>
-            <SidebarNavItem href="/advances" icon="advances">
-              Advances
+            <SidebarNavItem href="/payments" icon="payouts">
+              Payments
             </SidebarNavItem>
             <SidebarNavItem href="/bills" icon="bills">
               Daily Bills
