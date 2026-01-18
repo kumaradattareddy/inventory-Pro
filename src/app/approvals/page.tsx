@@ -185,7 +185,9 @@ export default function ApprovalsPage() {
                   {(viewData.sale_data.rows || []).map((row: any, i: number) => (
                     <tr key={i}>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>
-                         <div style={{fontWeight: 600}}>{row.product || row.productName || "Item"}</div>
+                         <div style={{fontWeight: 600}}>
+                           {row.product || row.productName || row.name || row.item_name || row.item || row.product_name || "(No Name)"}
+                         </div>
                          <div style={{fontSize: '0.8rem', color: '#666'}}>
                             {[row.material, row.size, row.unit].filter(Boolean).join(" · ")}
                          </div>
