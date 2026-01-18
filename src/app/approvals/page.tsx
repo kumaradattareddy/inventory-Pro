@@ -141,33 +141,54 @@ export default function ApprovalsPage() {
             </div>
             
             <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', fontSize: '0.875rem' }}>
+              {/* Header Details */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px', fontSize: '0.875rem', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
                 <div>
-                  <span style={{ color: '#6b7280', display: 'block' }}>Customer:</span>
-                  <div style={{ fontWeight: 500 }}>{viewData.sale_data.customerName}</div>
+                  <span style={{ color: '#6b7280', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</span>
+                  <div style={{ fontWeight: 600, fontSize: '1rem' }}>{viewData.sale_data.customerName}</div>
                 </div>
                 <div>
-                  <span style={{ color: '#6b7280', display: 'block' }}>Date:</span>
-                  <div style={{ fontWeight: 500 }}>{viewData.sale_data.billDate}</div>
+                  <span style={{ color: '#6b7280', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</span>
+                  <div style={{ fontWeight: 600, fontSize: '1rem' }}>{viewData.sale_data.billDate}</div>
+                </div>
+                <div>
+                  <span style={{ color: '#6b7280', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Received</span>
+                  <div>
+                    Advance: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.advance || 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    Paid Now: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.paidNow || 0).toLocaleString()}</span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#666' }}>Method: {viewData.sale_data.customerPayment?.method}</div>
+                </div>
+                <div>
+                   <span style={{ color: '#6b7280', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Charges</span>
+                   {Number(viewData.sale_data.gst || 0) > 0 && <div>GST: ₹{viewData.sale_data.gst}</div>}
+                   {Number(viewData.sale_data.hamali || 0) > 0 && <div>Hamali: ₹{viewData.sale_data.hamali}</div>}
+                   {Number(viewData.sale_data.transport || 0) > 0 && <div>Transport: ₹{viewData.sale_data.transport}</div>}
+                   {Number(viewData.sale_data.discount?.amount || 0) > 0 && <div style={{color:'green'}}>Discount: -₹{viewData.sale_data.discount.amount}</div>}
                 </div>
               </div>
 
+              {/* Items Table */}
               <h4 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem' }}>Items</h4>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', border: '1px solid #e5e7eb' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', border: '1px solid #e5e7eb', marginBottom: '24px' }}>
                 <thead style={{ backgroundColor: '#f3f4f6' }}>
                   <tr>
-                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Product</th>
-                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Qty</th>
-                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Rate</th>
-                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>Total</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Product / Description</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right', width: '80px' }}>Qty</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right', width: '100px' }}>Rate</th>
+                    <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right', width: '120px' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(viewData.sale_data.rows || []).map((row: any, i: number) => (
                     <tr key={i}>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>
-                         {row.product || row.productName} 
-                         {row.size ? ` (${row.size})` : ""}
+                         <div style={{fontWeight: 600}}>{row.product || row.productName || "Item"}</div>
+                         <div style={{fontSize: '0.8rem', color: '#666'}}>
+                            {[row.material, row.size, row.unit].filter(Boolean).join(" · ")}
+                         </div>
                       </td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.qty}</td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.rate}</td>
@@ -178,9 +199,32 @@ export default function ApprovalsPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Payouts Section */}
+              {viewData.sale_data.payouts && viewData.sale_data.payouts.length > 0 && (
+                <div style={{ marginBottom: '24px' }}>
+                  <h4 style={{ fontWeight: 600, marginBottom: '8px', fontSize: '1rem', color: '#b91c1c' }}>Payouts (To Others)</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', border: '1px solid #fee2e2' }}>
+                    <thead style={{ backgroundColor: '#fef2f2' }}>
+                      <tr>
+                        <th style={{ border: '1px solid #fee2e2', padding: '8px', textAlign: 'left' }}>Recipient</th>
+                        <th style={{ border: '1px solid #fee2e2', padding: '8px', textAlign: 'right' }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewData.sale_data.payouts.map((p: any, i: number) => (
+                        <tr key={i}>
+                          <td style={{ border: '1px solid #fee2e2', padding: '8px' }}>{p.recipientName}</td>
+                          <td style={{ border: '1px solid #fee2e2', padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(p.amount).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               
-              <div style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.125rem' }}>
-                 Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString()}
+              <div style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.25rem', borderTop: '2px dashed #ccc', paddingTop: '16px' }}>
+                 Grand Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString()}
               </div>
             </div>
 
