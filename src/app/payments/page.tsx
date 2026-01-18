@@ -155,24 +155,24 @@ export default function AdjustmentsPage() {
   return (
     <div className="page max-w-4xl mx-auto">
       <div className="page-header mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Payments & Adjustments</h1>
-        <p className="text-gray-500">Record payments and adjust dues.</p>
+        <h1 className="text-2xl font-bold text-gray-800">Party Transactions</h1>
+        <p className="text-gray-500">Record payments (In/Out) or adjust balances.</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {/* Tabs */}
-        <div className="flex border-b">
-          <div onClick={() => setMode("in")} className={tabClass("in")}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+          <div onClick={() => setMode("in")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'in' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'in' ? '#eff6ff' : 'transparent', color: mode === 'in' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
             ⬇ Receive (In)
           </div>
-          <div onClick={() => setMode("out")} className={tabClass("out")}>
+          <div onClick={() => setMode("out")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'out' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'out' ? '#eff6ff' : 'transparent', color: mode === 'out' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
             ⬆ Pay (Out)
           </div>
-          <div onClick={() => setMode("adj_debit")} className={tabClass("adj_debit")}>
-            ➕ Add Due (Charge)
+          <div onClick={() => setMode("adj_debit")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'adj_debit' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'adj_debit' ? '#eff6ff' : 'transparent', color: mode === 'adj_debit' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
+            ➕ Add Charge
           </div>
-          <div onClick={() => setMode("adj_credit")} className={tabClass("adj_credit")}>
-            ➖ Reduce Due (Discount)
+          <div onClick={() => setMode("adj_credit")} style={{ flex: 1, padding: '12px', textAlign: 'center', cursor: 'pointer', borderBottom: mode === 'adj_credit' ? '4px solid #2563eb' : '4px solid transparent', backgroundColor: mode === 'adj_credit' ? '#eff6ff' : 'transparent', color: mode === 'adj_credit' ? '#1d4ed8' : '#6b7280', fontWeight: 600 }}>
+            ➖ Add Discount
           </div>
         </div>
 
