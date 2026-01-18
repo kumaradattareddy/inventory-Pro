@@ -19,7 +19,7 @@ export default function AdjustmentsPage() {
   useEffect(() => {
     async function loadParties() {
       try {
-        const res = await fetch("/api/customers");
+        const res = await fetch("/api/parties");
         if (res.ok) {
           const data = await res.json();
           setParties(data);
