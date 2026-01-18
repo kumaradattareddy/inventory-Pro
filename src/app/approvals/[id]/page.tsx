@@ -575,6 +575,31 @@ export default function SalesPage() {
     router.push("/approvals");
   };
 
+  async function rejectSale() {
+    if (!confirm("Are you sure you want to REJECT and DELETE this sale approval?"))
+      return;
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      const res = await fetch(`/api/sales-approvals/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert("Sales approval rejected.");
+        router.push("/approvals");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert("❌ Failed to reject: " + (data.error || "Unknown error"));
+        setSaving(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("❌ Network error while rejecting.");
+      setSaving(false);
+    }
+  }
+
   async function saveSale() {
     if (saving) return;
     setSaving(true);
@@ -1253,15 +1278,26 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <button
-        className={`btn btn-success btn-lg ${
-          saving ? "opacity-60 cursor-not-allowed" : ""
-        }`}
-        onClick={saveSale}
-        disabled={saving}
-      >
-        {saving ? "Approve & Save..." : "Approve & Save Sale"}
-      </button>
+      <div className="flex gap-4 mt-8">
+        <button
+          className={`btn btn-danger btn-lg ${
+            saving ? "opacity-60 cursor-not-allowed" : ""
+          }`}
+          onClick={rejectSale}
+          disabled={saving}
+        >
+          Reject
+        </button>
+        <button
+          className={`btn btn-success btn-lg flex-1 ${
+            saving ? "opacity-60 cursor-not-allowed" : ""
+          }`}
+          onClick={saveSale}
+          disabled={saving}
+        >
+          {saving ? "Approve & Save..." : "Approve & Save Sale"}
+        </button>
+      </div>
     </div>
   );
 }
