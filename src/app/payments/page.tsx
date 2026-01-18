@@ -2,82 +2,6 @@
 
 import { useState, useEffect } from "react";
 
-/* --------------------------- Reusable Components -------------------------- */
-function useDebounce(value: string, delay: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
-function AutocompleteInput({
-  value,
-  onChange,
-  onSelect,
-  fetchSuggestions,
-  placeholder,
-}: {
-  value: string;
-  onChange: (newValue: string) => void;
-  onSelect: (suggestion: any) => void;
-  fetchSuggestions: (query: string) => Promise<any[]>;
-  placeholder?: string;
-}) {
-  const [results, setResults] = useState<any[]>([]);
-  const [show, setShow] = useState(false);
-  const [highlighted, setHighlighted] = useState(0);
-  const debouncedQuery = useDebounce(value, 300);
-
-  useEffect(() => {
-    async function getSuggestions() {
-      if (debouncedQuery.length < 1) {
-        setResults([]);
-        setShow(false);
-        return;
-      }
-      const data = await fetchSuggestions(debouncedQuery);
-      setResults(data);
-      setShow(data.length > 0);
-      setHighlighted(0);
-    }
-    if (debouncedQuery) getSuggestions();
-  }, [debouncedQuery, fetchSuggestions]);
-
-  return (
-    <div className="relative w-full">
-      <input
-        className="form-input w-full"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => value.length >= 1 && results.length > 0 && setShow(true)}
-        onBlur={() => setTimeout(() => setShow(false), 200)}
-        placeholder={placeholder}
-      />
-      {show && (
-        <div className="autocomplete-dropdown absolute left-0 right-0 top-full mt-1 bg-white border rounded shadow-lg z-50 max-h-48 overflow-auto">
-          {results.map((r, idx) => (
-            <div
-              key={r.id || r.name || idx}
-              className={`p-2 cursor-pointer hover:bg-gray-100 ${
-                highlighted === idx ? "bg-blue-50" : ""
-              }`}
-              onMouseDown={() => {
-                onSelect(r);
-                setShow(false);
-              }}
-            >
-              {r.name}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------- Main Page ------------------------------- */
 export default function AdjustmentsPage() {
   const [mode, setMode] = useState<"in" | "out" | "adj_debit" | "adj_credit">("in");
   
@@ -89,17 +13,23 @@ export default function AdjustmentsPage() {
   const [notes, setNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [parties, setParties] = useState<any[]>([]);
 
-  /* -------------------------------- Fetchers ------------------------------- */
-  const fetchParties = async (query: string) => {
-    try {
-      // Search customers mainly, maybe separate endpoint for 'others' if needed
-      const res = await fetch(`/api/customers/search?q=${encodeURIComponent(query)}`);
-      return res.ok ? await res.json() : [];
-    } catch {
-      return [];
+  // Fetch all parties on mount
+  useEffect(() => {
+    async function loadParties() {
+      try {
+        const res = await fetch("/api/customers");
+        if (res.ok) {
+          const data = await res.json();
+          setParties(data);
+        }
+      } catch (e) {
+        console.error("Failed to load parties", e);
+      }
     }
-  };
+    loadParties();
+  }, []);
 
   /* -------------------------------- Helpers -------------------------------- */
   const handleNum = (v: string) => {
@@ -108,7 +38,7 @@ export default function AdjustmentsPage() {
 
   async function saveTransaction() {
     if (!partyName.trim() || !amount || parseFloat(amount) <= 0) {
-      alert("Please enter a valid Party Name and Amount.");
+      alert("Please select a Party and enter a valid Amount.");
       return;
     }
     setSaving(true);
@@ -132,7 +62,7 @@ export default function AdjustmentsPage() {
         alert("✅ Transaction saved successfully!");
         setAmount("");
         setNotes("");
-        setPartyName("");
+        // Keep party selected or clear? Usually keep for rapid entry, but user can change.
       } else {
         const d = await res.json();
         alert("❌ Error: " + (d.error || "Unknown"));
@@ -144,19 +74,11 @@ export default function AdjustmentsPage() {
     }
   }
 
-  // Styles for tabs
-  const tabClass = (m: string) =>
-    `flex-1 py-3 text-center cursor-pointer font-semibold transition-colors ${
-      mode === m
-        ? "border-b-4 border-blue-600 text-blue-700 bg-blue-50"
-        : "text-gray-500 hover:bg-gray-50 border-b-4 border-transparent"
-    }`;
-
   return (
     <div className="page max-w-4xl mx-auto">
       <div className="page-header mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Party Transactions</h1>
-        <p className="text-gray-500">Record payments (In/Out) or adjust balances.</p>
+        <h1 className="text-2xl font-bold text-gray-800">Accounts - Parties</h1>
+        <p className="text-gray-500">Manage Party Dues & Payments</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -187,14 +109,17 @@ export default function AdjustmentsPage() {
 
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="form-label">Party / Customer Name</label>
-              <AutocompleteInput
-                value={partyName}
-                onChange={setPartyName}
-                onSelect={(p) => setPartyName(p.name)}
-                fetchSuggestions={fetchParties}
-                placeholder="Search name..."
-              />
+              <label className="form-label">Select Party / Customer</label>
+              <select 
+                className="form-select w-full" 
+                value={partyName} 
+                onChange={(e) => setPartyName(e.target.value)}
+              >
+                <option value="">-- Select Party --</option>
+                {parties.map((p) => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
             </div>
 
             <div>

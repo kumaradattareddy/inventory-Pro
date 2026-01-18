@@ -28,6 +28,9 @@ export default function RootLayout({
             <SidebarNavItem href="/parties" icon="users">
               Parties
             </SidebarNavItem>
+            <SidebarNavItem href="/payments" icon="payouts">
+              Accounts - Parties
+            </SidebarNavItem>
             <SidebarNavItem href="/purchases" icon="purchases">
               Purchases
             </SidebarNavItem>
@@ -36,9 +39,6 @@ export default function RootLayout({
             </SidebarNavItem>
             <SidebarNavItem href="/approvals" icon="approvals">
               Approvals
-            </SidebarNavItem>
-            <SidebarNavItem href="/payments" icon="payouts">
-              Payments
             </SidebarNavItem>
             <SidebarNavItem href="/bills" icon="bills">
               Daily Bills
