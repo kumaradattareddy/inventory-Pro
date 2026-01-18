@@ -33,7 +33,14 @@ export default function ApprovalsPage() {
       const res = await fetch(`/api/sales-approvals/${id}`);
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
-      setViewData({ ...data, id }); // ensure ID is passed
+      // console.log("Debug Fetch:", data);
+      
+      if (!data || !data.sale_data) {
+        alert("Error: No sale data found in record.");
+        return;
+      }
+      
+      setViewData({ ...data, id }); 
     } catch (e) {
       alert("Error loading details");
     } finally {
@@ -113,15 +120,14 @@ export default function ApprovalsPage() {
           </table>
         </div>
       </div>
-
       {loadingView && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="bg-white p-4 rounded shadow">Loading items...</div>
         </div>
       )}
 
       {viewData && viewData.sale_data && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
               <h3 className="font-bold text-lg">Reject Sale: Bill #{viewData.sale_data.billNo}</h3>
