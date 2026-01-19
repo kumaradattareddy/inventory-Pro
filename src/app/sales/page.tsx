@@ -914,7 +914,6 @@ export default function SalesPage() {
               }
             />
             <input
-              type="text"
               className="form-input"
               placeholder="Discount Amount"
               value={discount.amount}
@@ -925,6 +924,25 @@ export default function SalesPage() {
                 )
               }
             />
+          </div>
+
+          <div style={{ marginTop: "20px", padding: "16px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                 <span style={{ fontSize: "14px", color: "#64748b" }}>Subtotal:</span>
+                 <span style={{ fontWeight: "600" }}>₹{subtotal.toLocaleString("en-IN")}</span>
+             </div>
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                 <span style={{ fontSize: "14px", color: "#64748b" }}>Total Charges:</span>
+                 <span style={{ fontWeight: "600", color: "#b91c1c" }}>+ ₹{totalCharges.toLocaleString("en-IN")}</span>
+             </div>
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                 <span style={{ fontSize: "14px", color: "#64748b" }}>Discount:</span>
+                 <span style={{ fontWeight: "600", color: "#15803d" }}>- ₹{totalDiscount.toLocaleString("en-IN")}</span>
+             </div>
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "8px" }}>
+                 <span style={{ fontSize: "16px", fontWeight: "700" }}>Net Payable:</span>
+                 <span style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>₹{grandTotal.toLocaleString("en-IN")}</span>
+             </div>
           </div>
         </div>
       </div>

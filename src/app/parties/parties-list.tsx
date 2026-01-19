@@ -221,6 +221,23 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
                                 onChange={(e) => setAmount(e.target.value)}
                              />
                         </div>
+                        {amount && !isNaN(parseFloat(amount)) && (
+                            <div className="mt-2 text-sm flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                <span className="text-gray-500">New Balance:</span>
+                                <span className="font-bold text-gray-900">
+                                    ₹{
+                                        (selectedParty.balance + (mode === 'out' ? -parseFloat(amount) : parseFloat(amount))).toLocaleString()
+                                    }
+                                    <span className="text-xs font-normal text-gray-400 ml-1">
+                                        (
+                                        {selectedParty.balance.toLocaleString()} 
+                                        {mode === 'out' ? ' - ' : ' + '} 
+                                        {parseFloat(amount).toLocaleString()}
+                                        )
+                                    </span>
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

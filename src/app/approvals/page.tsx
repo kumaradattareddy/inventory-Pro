@@ -21,7 +21,12 @@ export default function ApprovalsPage() {
   useEffect(() => {
     fetch("/api/sales-approvals")
       .then((r) => r.json())
-      .then(setRows)
+      .then((data) => {
+        const sorted = (data || []).sort((a: Approval, b: Approval) => 
+          (a.bill_no || "").localeCompare(b.bill_no || "", undefined, { numeric: true, sensitivity: 'base' })
+        );
+        setRows(sorted);
+      })
       .catch(console.error);
   }, []);
 
