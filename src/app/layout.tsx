@@ -26,10 +26,7 @@ export default function RootLayout({
               Customers
             </SidebarNavItem>
             <SidebarNavItem href="/parties" icon="users">
-              Parties
-            </SidebarNavItem>
-            <SidebarNavItem href="/payments" icon="payouts">
-              Accounts - Parties
+              Parties & Accounts
             </SidebarNavItem>
             <SidebarNavItem href="/purchases" icon="purchases">
               Purchases
