@@ -287,14 +287,16 @@ export default function SalesPage() {
       try {
         const res = await fetch(`/api/sales-approvals/${id}`);
         const json = await res.json();
-        const { sale_data, bill_no: tableBillNo } = json;
+        const { sale_data, bill_no: tableBillNo, next_bill_no } = json;
 
         if (!sale_data) return;
 
-        // Use table's bill_no as fallback when sale_data.billNo is missing or "PENDING"
-        const resolvedBillNo = sale_data.billNo && sale_data.billNo !== "PENDING"
-          ? sale_data.billNo
-          : (tableBillNo || sale_data.billNo || "");
+        // 3-tier fallback: sale_data.billNo → table bill_no → auto-generated next bill number
+        const isPending = (v: any) => !v || v === "PENDING";
+        let resolvedBillNo = sale_data.billNo || "";
+        if (isPending(resolvedBillNo)) {
+          resolvedBillNo = isPending(tableBillNo) ? (next_bill_no || "") : tableBillNo;
+        }
         setBillNo(resolvedBillNo);
         // Safe Date Parsing
         let parsedDate = new Date().toISOString().split("T")[0];
