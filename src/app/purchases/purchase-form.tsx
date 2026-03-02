@@ -398,7 +398,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                 </td>
 
                 <td style={{ textAlign: "right" }}>
-                  ₹{((Number(row.qty) || 0) * (Number(row.price) || 0)).toFixed(2)}
+                  ₹{((Number(row.qty) || 0) * (Number(row.price) || 0)).toLocaleString("en-IN")}
                 </td>
 
                 <td>
@@ -422,7 +422,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
 
           <div className="purchase-summary">
             <div className="total">
-              Total: <span>₹{total.toFixed(2)}</span>
+              Total: <span>₹{total.toLocaleString("en-IN")}</span>
             </div>
             <button
               className="btn-primary"

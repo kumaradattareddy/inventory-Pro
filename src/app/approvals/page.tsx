@@ -159,10 +159,10 @@ export default function ApprovalsPage() {
                 <div>
                   <span style={{ color: '#6b7280', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Received</span>
                   <div>
-                    Advance: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.advance || 0).toLocaleString()}</span>
+                    Advance: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.advance || 0).toLocaleString("en-IN")}</span>
                   </div>
                   <div>
-                    Paid Now: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.paidNow || 0).toLocaleString()}</span>
+                    Paid Now: <span style={{ fontWeight: 600 }}>₹{Number(viewData.sale_data.customerPayment?.paidNow || 0).toLocaleString("en-IN")}</span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: '#666' }}>Method: {viewData.sale_data.customerPayment?.method}</div>
                 </div>
@@ -200,7 +200,7 @@ export default function ApprovalsPage() {
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.qty}</td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.rate}</td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>
-                        {((Number(row.qty) || 0) * (Number(row.rate) || 0)).toFixed(2)}
+                        {((Number(row.qty) || 0) * (Number(row.rate) || 0)).toLocaleString("en-IN")}
                       </td>
                     </tr>
                   ))}
@@ -222,7 +222,7 @@ export default function ApprovalsPage() {
                       {viewData.sale_data.payouts.map((p: any, i: number) => (
                         <tr key={i}>
                           <td style={{ border: '1px solid #fee2e2', padding: '8px' }}>{p.recipientName}</td>
-                          <td style={{ border: '1px solid #fee2e2', padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(p.amount).toLocaleString()}</td>
+                          <td style={{ border: '1px solid #fee2e2', padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(p.amount).toLocaleString("en-IN")}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -231,7 +231,7 @@ export default function ApprovalsPage() {
               )}
               
               <div style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.25rem', borderTop: '2px dashed #ccc', paddingTop: '16px' }}>
-                 Grand Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString()}
+                 Grand Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString("en-IN")}
               </div>
             </div>
 

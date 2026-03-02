@@ -139,11 +139,11 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
                                     {p.name}
                                 </Link>
                             </td>
-                            <td className="p-4 text-right text-gray-500">₹{p.totalPurchases.toLocaleString()}</td>
-                            <td className="p-4 text-right text-gray-500">₹{p.totalPaid.toLocaleString()}</td>
+                            <td className="p-4 text-right text-gray-500">₹{p.totalPurchases.toLocaleString("en-IN")}</td>
+                            <td className="p-4 text-right text-gray-500">₹{p.totalPaid.toLocaleString("en-IN")}</td>
                             <td className="p-4 text-right">
                                 <span className={`font-bold px-2 py-1 rounded ${isDue ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                                    ₹{p.balance.toLocaleString()}
+                                    ₹{p.balance.toLocaleString("en-IN")}
                                 </span>
                             </td>
                             <td className="p-4 text-center">
@@ -175,7 +175,7 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900">{selectedParty.name}</h3>
-                        <p className="text-sm text-gray-500">Current Balance: ₹{selectedParty.balance.toLocaleString()}</p>
+                        <p className="text-sm text-gray-500">Current Balance: ₹{selectedParty.balance.toLocaleString("en-IN")}</p>
                     </div>
                     <button onClick={closePaymentModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light">&times;</button>
                 </div>
@@ -226,13 +226,13 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
                                 <span className="text-gray-500">New Balance:</span>
                                 <span className="font-bold text-gray-900">
                                     ₹{
-                                        (selectedParty.balance + (mode === 'out' ? -parseFloat(amount) : parseFloat(amount))).toLocaleString()
+                                        (selectedParty.balance + (mode === 'out' ? -parseFloat(amount) : parseFloat(amount))).toLocaleString("en-IN")
                                     }
                                     <span className="text-xs font-normal text-gray-400 ml-1">
                                         (
-                                        {selectedParty.balance.toLocaleString()} 
+                                        {selectedParty.balance.toLocaleString("en-IN")} 
                                         {mode === 'out' ? ' - ' : ' + '} 
-                                        {parseFloat(amount).toLocaleString()}
+                                        {parseFloat(amount).toLocaleString("en-IN")}
                                         )
                                     </span>
                                 </span>

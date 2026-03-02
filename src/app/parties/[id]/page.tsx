@@ -107,22 +107,22 @@ export default async function PartyDetailsPage(props: { params: Promise<{ id: st
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
            <div className="text-gray-500 text-sm font-medium">Opening Balance</div>
-           <div className="text-xl font-bold mt-1">₹{(supplier.opening_balance || 0).toLocaleString()}</div>
+           <div className="text-xl font-bold mt-1">₹{(supplier.opening_balance || 0).toLocaleString("en-IN")}</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
            <div className="text-gray-500 text-sm font-medium">Total Billed (Credits)</div>
-           <div className="text-xl font-bold mt-1 text-blue-600">+ ₹{totalPurchases.toLocaleString()}</div>
+           <div className="text-xl font-bold mt-1 text-blue-600">+ ₹{totalPurchases.toLocaleString("en-IN")}</div>
         </div>
          <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
            <div className="text-gray-500 text-sm font-medium">Total Paid (Debits)</div>
-           <div className="text-xl font-bold mt-1 text-green-600">- ₹{totalPaid.toLocaleString()}</div>
+           <div className="text-xl font-bold mt-1 text-green-600">- ₹{totalPaid.toLocaleString("en-IN")}</div>
         </div>
       </div>
 
       <div className="bg-blue-50 p-6 rounded-xl mt-4 border border-blue-100 flex justify-between items-center">
         <div>
             <div className="text-blue-800 font-semibold mb-1">Net Balance Due</div>
-            <div className="text-3xl font-bold text-blue-900">₹{currentBalance.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-blue-900">₹{currentBalance.toLocaleString("en-IN")}</div>
         </div>
         <Link href="/payments" className="btn bg-blue-600 text-white hover:bg-blue-700 border-none">
             Record Payment
@@ -164,10 +164,10 @@ export default async function PartyDetailsPage(props: { params: Promise<{ id: st
                     </td>
                     <td className="p-3 text-gray-700">{t.details}</td>
                     <td className="p-3 text-right font-medium text-orange-600">
-                      {t.amount_in > 0 ? `₹${t.amount_in.toLocaleString()}` : "-"}
+                      {t.amount_in > 0 ? `₹${t.amount_in.toLocaleString("en-IN")}` : "-"}
                     </td>
                     <td className="p-3 text-right font-medium text-green-600">
-                      {t.amount_out > 0 ? `₹${t.amount_out.toLocaleString()}` : "-"}
+                      {t.amount_out > 0 ? `₹${t.amount_out.toLocaleString("en-IN")}` : "-"}
                     </td>
                   </tr>
                 ))

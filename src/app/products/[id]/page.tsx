@@ -76,11 +76,11 @@ export default async function ProductHistory({
                   <td>{m.qty}</td>
                   <td>
                     {m.price_per_unit
-                      ? `₹${m.price_per_unit.toLocaleString()}`
+                      ? `₹${m.price_per_unit.toLocaleString("en-IN")}`
                       : '-'}
                   </td>
                   <td>
-                    {amount ? `₹${amount.toLocaleString()}` : '-'}
+                    {amount ? `₹${amount.toLocaleString("en-IN")}` : '-'}
                   </td>
                   <td>{m.bill_no ?? '-'}</td>
                 </tr>

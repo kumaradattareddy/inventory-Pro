@@ -90,7 +90,7 @@ export default function PurchasesPage() {
                     <td>{item.product_name}</td>
                     <td>{item.unit}</td>
                     <td>{item.qty}</td>
-                    <td>₹{(item.total_amount ?? 0).toFixed(2)}</td>
+                    <td>₹{(item.total_amount ?? 0).toLocaleString("en-IN")}</td>
                   </tr>
                 ))
               )}
