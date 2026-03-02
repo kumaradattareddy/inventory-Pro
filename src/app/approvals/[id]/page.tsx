@@ -331,18 +331,55 @@ export default function SalesPage() {
         setIsNewCustomer(isNew);
 
         if (sale_data.rows && Array.isArray(sale_data.rows)) {
-          setRows(
-            sale_data.rows.map((r: any) => ({
-              _rowId: uid(),
-              product_id: r.product_id || null,
-              product: r.product || r.productName || r.name || r.product_name || r.item_name || r.item || "",
-              material: r.material || "",
-              size: r.size || "",
-              unit: r.unit || "",
-              qty: String(r.qty || ""),
-              rate: String(r.rate || ""),
-            }))
+          const mappedRows: Row[] = sale_data.rows.map((r: any) => ({
+            _rowId: uid(),
+            product_id: r.product_id || null,
+            product: r.product || r.productName || r.name || r.product_name || r.item_name || r.item || "",
+            material: r.material || "",
+            size: r.size || "",
+            unit: r.unit || "",
+            qty: String(r.qty || ""),
+            rate: String(r.rate || ""),
+          }));
+
+          // Auto-resolve missing material/rate from products DB
+          const needsResolve = mappedRows.filter(
+            (r) => r.product && (!r.material)
           );
+          if (needsResolve.length > 0) {
+            try {
+              const resolvedMap = new Map<string, any>();
+              for (const row of needsResolve) {
+                if (resolvedMap.has(row.product)) continue;
+                const res2 = await fetch(
+                  `/api/products?q=${encodeURIComponent(row.product)}`
+                );
+                if (res2.ok) {
+                  const products = await res2.json();
+                  // Find exact or best match
+                  const match = (products || []).find(
+                    (p: any) =>
+                      p.name?.toLowerCase() === row.product.toLowerCase() ||
+                      (row.product_id && p.id === row.product_id)
+                  ) || (products && products[0]);
+                  if (match) resolvedMap.set(row.product, match);
+                }
+              }
+              // Fill in missing fields
+              for (const row of mappedRows) {
+                const match = resolvedMap.get(row.product);
+                if (match) {
+                  if (!row.material && match.material) row.material = match.material;
+                  if (!row.product_id && match.id) row.product_id = match.id;
+                  if ((!row.rate || row.rate === "0") && match.rate) row.rate = String(match.rate);
+                }
+              }
+            } catch (e) {
+              console.error("Error auto-resolving product details", e);
+            }
+          }
+
+          setRows(mappedRows);
         }
 
         // Robust Payment Mapping
