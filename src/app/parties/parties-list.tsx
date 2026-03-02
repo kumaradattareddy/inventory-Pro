@@ -108,7 +108,7 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
         <div style={{
           background: "linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%)",
           border: "1px solid #fecdd3",
@@ -123,23 +123,6 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
           </div>
           <div style={{ fontSize: 12, color: "#e11d48", marginTop: 4 }}>
             {suppliersWithDue} supplier{suppliersWithDue !== 1 ? "s" : ""} with dues
-          </div>
-        </div>
-
-        <div style={{
-          background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
-          border: "1px solid #bbf7d0",
-          borderRadius: 12,
-          padding: "20px 24px",
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Total Overpaid
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#15803d", marginTop: 4, letterSpacing: "-0.02em" }}>
-            ₹{totalOverpaid.toLocaleString("en-IN")}
-          </div>
-          <div style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
-            Advance / excess payments
           </div>
         </div>
 
@@ -206,9 +189,13 @@ export default function PartiesList({ initialParties }: { initialParties: PartyD
                 >
                   <td style={{ padding: "16px 20px" }}>
                     <Link href={`/parties/${p.id}`} style={{ 
-                      color: "#111827", fontWeight: 600, textDecoration: "none", fontSize: 14,
-                      borderBottom: "1px dashed transparent",
-                    }}>
+                      color: "#2563eb", fontWeight: 600, textDecoration: "underline", fontSize: 14,
+                      textDecorationColor: "#bfdbfe",
+                      textUnderlineOffset: "3px",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1d4ed8"; (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = "#2563eb"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#2563eb"; (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = "#bfdbfe"; }}
+                    >
                       {p.name}
                     </Link>
                   </td>
