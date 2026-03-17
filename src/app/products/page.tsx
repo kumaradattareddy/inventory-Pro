@@ -22,22 +22,40 @@ type Product = {
 export default async function ProductsPage() {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('product_stock_live' as never) // ✅ FIX
-    .select(`
-      id,
-      name,
-      size,
-      unit,
-      current_stock,
-      supplier_name
-    `)
-    .order('name')
+  // Supabase limits results to 1000 rows by default.
+  // Fetch ALL products by paginating in batches.
+  const PAGE_SIZE = 1000
+  let allRows: ProductRowDB[] = []
+  let from = 0
+  let keepGoing = true
 
-  if (error) throw new Error(error.message)
+  while (keepGoing) {
+    const { data, error } = await supabase
+      .from('product_stock_live' as never)
+      .select(`
+        id,
+        name,
+        size,
+        unit,
+        current_stock,
+        supplier_name
+      `)
+      .order('name')
+      .range(from, from + PAGE_SIZE - 1)
 
-  // ✅ Safe cast AFTER query
-  const rows = (data ?? []) as ProductRowDB[]
+    if (error) throw new Error(error.message)
+
+    const rows = (data ?? []) as ProductRowDB[]
+    allRows = allRows.concat(rows)
+
+    if (rows.length < PAGE_SIZE) {
+      keepGoing = false
+    } else {
+      from += PAGE_SIZE
+    }
+  }
+
+  const rows = allRows
 
   const products: Product[] = rows.flatMap((r) => {
     const id = Number(r.id)
