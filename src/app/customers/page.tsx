@@ -22,20 +22,34 @@ export default function CustomersPage() {
   ======================= */
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from("customer_totals")
-        .select("id, name, balance")
-        .order("name");
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      let done = false;
 
-      if (data) {
-        setAllCustomers(
-          data.map((c: any) => ({
-            id: Number(c.id),
-            name: c.name,
-            balance: Number(c.balance ?? 0),
-          }))
-        );
+      while (!done) {
+        const { data } = await supabase
+          .from("customer_totals")
+          .select("id, name, balance")
+          .order("name")
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          from += PAGE_SIZE;
+          if (data.length < PAGE_SIZE) done = true;
+        } else {
+          done = true;
+        }
       }
+
+      setAllCustomers(
+        allData.map((c: any) => ({
+          id: Number(c.id),
+          name: c.name,
+          balance: Number(c.balance ?? 0),
+        }))
+      );
       setLoading(false);
     }
     load();

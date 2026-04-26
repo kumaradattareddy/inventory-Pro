@@ -10,7 +10,8 @@ export async function GET() {
   const { data, error } = await supabase
     .from("customers")
     .select("id, name")
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .limit(10000);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
