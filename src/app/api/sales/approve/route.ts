@@ -81,11 +81,11 @@ export async function POST(req: Request) {
       // Jitter to allow concurrent transactions to write proposals
       await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 300));
 
-      const { data: conflicts } = await supabase
+      const { data: conflicts } = (await supabase
         .from("sales_approvals" as any)
         .select("id, created_at")
         .eq("bill_no", finalBillNo)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })) as any;
 
       const weWon = conflicts && conflicts.length > 0 && String(conflicts[0].id) === String(approvalId);
 
