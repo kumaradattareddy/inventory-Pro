@@ -76,9 +76,9 @@ export default async function ProductHistory({
     for (let i = 0; i < billNos.length; i += 200) {
       const batch = billNos.slice(i, i + 200)
       const { data: approvals } = await supabase
-        .from('sales_approvals')
+        .from('sales_approvals' as any)
         .select('bill_no, executive')
-        .in('bill_no', batch)
+        .in('bill_no', batch) as any
 
       if (approvals) {
         for (const a of approvals) {

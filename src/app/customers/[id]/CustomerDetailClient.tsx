@@ -111,13 +111,13 @@ export default function CustomerDetailClient({ id }: { id: string }) {
 
       const withRunning: Transaction[] = rows.map((r) => {
         let pcs: number | null | undefined = null;
-        if (r.type === "Sale" || r.type === "Purchase") {
+        if (r.type === "Sale") {
           // Attempt to match with stock_moves
           const match = smData.find(sm => 
             String(sm.bill_no) === String(r.bill_no) && 
             Number(sm.price_per_unit) === Number(r.price_per_unit) && 
             Number(sm.qty) === Number(r.qty) && 
-            (!sm.product || !r.details || r.details.includes(sm.product.name))
+            (!sm.product || !r.details || r.details.includes(sm.product.name ?? ""))
           );
           if (match && match.qty_pcs) pcs = match.qty_pcs;
         }
