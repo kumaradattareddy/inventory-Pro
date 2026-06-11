@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format, isToday, isYesterday } from "date-fns";
 
@@ -47,7 +47,7 @@ type DailyGroup = {
 ======================= */
 
 export default function DailyBillsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [dailyGroups, setDailyGroups] = useState<DailyGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,24 +69,54 @@ export default function DailyBillsPage() {
       customers?.forEach((c) => custMap.set(c.id, c.name));
 
       // 2. Fetch Ledger
-      const { data: ledgerData, error: ledErr } = await supabase
+      const ledgerRes = await supabase
         .from("bill_transaction_ledger")
         .select("*")
-        .order("date", { ascending: false });
+        .order("date", { ascending: false })
+        .limit(2000);
 
-      if (ledErr) {
-        console.error("Error fetching ledger:", ledErr);
+      if (ledgerRes.error) {
+        console.error("Error fetching ledger:", ledgerRes.error);
         setLoading(false);
         return;
       }
 
-      const rows = (ledgerData ?? []) as LedgerRow[];
+      const rows = (ledgerRes.data ?? []) as LedgerRow[];
+
+      // 3. Extract bill numbers and fetch corresponding Stock Moves to get pieces
+      const billNos = Array.from(new Set(rows.map((r) => r.bill_no).filter(Boolean)));
+      let smData: any[] = [];
+      
+      // If there are many bills, we should fetch them safely.
+      if (billNos.length > 0) {
+        const smRes = await supabase
+          .from("stock_moves")
+          .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name)")
+          .in("kind", ["sale", "purchase"])
+          .in("bill_no", billNos as string[]);
+        smData = smRes.data ?? [];
+      }
 
       // 3. Attach Customer Names & Prepare Transactions
-      const transactions: Transaction[] = rows.map((r) => ({
-        ...r,
-        customer_name: r.customer_id ? custMap.get(r.customer_id) || "Unknown" : "—",
-      }));
+      const transactions: Transaction[] = rows.map((r) => {
+        let pcs: number | null | undefined = null;
+        if (r.type === "Sale" || r.type === "Purchase") {
+          // Attempt to match with stock_moves
+          const match = smData.find(sm => 
+            String(sm.bill_no) === String(r.bill_no) && 
+            Number(sm.price_per_unit) === Number(r.price_per_unit) && 
+            Number(sm.qty) === Number(r.qty) && 
+            (!sm.product || !r.details || r.details.includes(sm.product.name))
+          );
+          if (match && match.qty_pcs) pcs = match.qty_pcs;
+        }
+
+        return {
+          ...r,
+          customer_name: r.customer_id ? custMap.get(r.customer_id) || "Unknown" : "—",
+          qty_pcs: pcs,
+        };
+      });
 
       // 4. Group by Bill No
       // CORRECTION: Group strictly by Bill No to ensure Payouts (null cid) merge with Sales (valid cid) if Bill No matches.
@@ -360,8 +390,9 @@ export default function DailyBillsPage() {
                                  <span className="db-table-type">{item.type}</span>
                                </td>
                                <td className="text-gray-700">{item.details}</td>
-                               <td className="db-amount right" style={{ color: "#6b7280", width: 80 }}>
-                                 {item.qty || "—"}
+                               <td className="db-amount right" style={{ color: "#6b7280", width: 130, whiteSpace: "nowrap" }}>
+                                 {/* @ts-ignore */}
+                                 {item.qty_pcs ? `${item.qty_pcs} Pcs / ${item.qty} SqFt` : (item.qty || "—")}
                                </td>
                                <td className="db-amount right" style={{ color: "#6b7280", width: 100 }}>
                                  {item.price_per_unit ? `₹${item.price_per_unit.toLocaleString("en-IN")}` : "—"}

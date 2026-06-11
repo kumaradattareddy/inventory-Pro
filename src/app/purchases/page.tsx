@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import PurchaseForm from "./purchase-form";
@@ -16,7 +16,7 @@ type PurchaseItem = {
 };
 
 export default function PurchasesPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [recentItems, setRecentItems] = useState<PurchaseItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 

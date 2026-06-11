@@ -187,23 +187,27 @@ export default function ApprovalsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(viewData.sale_data.rows || []).map((row: any, i: number) => (
+                  {(viewData.sale_data.rows || []).map((row: any, i: number) => {
+                    const isGranite = row.material?.toLowerCase() === "granite";
+                    const qtyToUse = isGranite ? (Number(row.qty_sqft) || 0) : (Number(row.qty) || 0);
+                    return (
                     <tr key={i}>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>
                          <div style={{fontWeight: 600}}>
                            {row.product || row.productName || row.name || row.item_name || row.item || row.product_name || "(No Name)"}
                          </div>
                          <div style={{fontSize: '0.8rem', color: '#666'}}>
-                            {[row.material, row.size, row.unit].filter(Boolean).join(" · ")}
+                            {[row.material, row.size, isGranite ? "Pcs: " + row.qty : row.unit].filter(Boolean).join(" · ")}
                          </div>
                       </td>
-                      <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.qty}</td>
+                      <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{isGranite ? row.qty_sqft + " SqFt" : row.qty}</td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>{row.rate}</td>
                       <td style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'right' }}>
-                        {((Number(row.qty) || 0) * (Number(row.rate) || 0)).toLocaleString("en-IN")}
+                        {(qtyToUse * (Number(row.rate) || 0)).toLocaleString("en-IN")}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
 
@@ -231,7 +235,11 @@ export default function ApprovalsPage() {
               )}
               
               <div style={{ marginTop: '16px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.25rem', borderTop: '2px dashed #ccc', paddingTop: '16px' }}>
-                 Grand Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => acc + (Number(r.qty||0) * Number(r.rate||0)), 0) || 0).toLocaleString("en-IN")}
+                 Grand Total: ₹{(viewData.sale_data.rows?.reduce((acc: number, r: any) => {
+                   const isGranite = r.material?.toLowerCase() === "granite";
+                   const qtyToUse = isGranite ? (Number(r.qty_sqft) || 0) : (Number(r.qty) || 0);
+                   return acc + (qtyToUse * Number(r.rate || 0));
+                 }, 0) || 0).toLocaleString("en-IN")}
               </div>
             </div>
 

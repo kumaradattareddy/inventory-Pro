@@ -22,6 +22,15 @@ type Product = {
 export default async function ProductsPage() {
   const supabase = await createClient()
 
+  // Fetch granite product IDs to exclude from main list
+  const { data: graniteRows } = await supabase
+    .from('granite_stock_live' as never)
+    .select('id')
+
+  const graniteIds = new Set(
+    (graniteRows ?? []).map((r: { id: number }) => r.id)
+  )
+
   // Supabase limits results to 1000 rows by default.
   // Fetch ALL products by paginating in batches.
   const PAGE_SIZE = 1000
@@ -55,7 +64,7 @@ export default async function ProductsPage() {
     }
   }
 
-  const rows = allRows
+  const rows = allRows.filter((r) => r.id && !graniteIds.has(r.id))
 
   const products: Product[] = rows.flatMap((r) => {
     const id = Number(r.id)

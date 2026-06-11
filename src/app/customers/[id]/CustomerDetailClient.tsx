@@ -1,7 +1,7 @@
 "use client";
 
 // React
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,7 @@ type LedgerRow = {
 
 type Transaction = LedgerRow & {
   running_balance?: number;
+  qty_pcs?: number | null;
 };
 
 type Grouped = Record<string, Transaction[]>;
@@ -48,7 +49,7 @@ type BillGroup = {
 ======================= */
 
 export default function CustomerDetailClient({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -79,21 +80,29 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       setCustomer(cust);
 
       /* -----------------------
-         2) Fetch ledger
+         2) Fetch ledger and stock_moves
       ------------------------ */
-      const { data, error: ledErr } = await supabase
-        .from("bill_transaction_ledger")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("date", { ascending: true });
+      const [ledgerRes, stockMovesRes] = await Promise.all([
+        supabase
+          .from("bill_transaction_ledger")
+          .select("*")
+          .eq("customer_id", customerId)
+          .order("date", { ascending: true }),
+        supabase
+          .from("stock_moves")
+          .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name)")
+          .eq("customer_id", customerId)
+          .in("kind", ["sale", "purchase"])
+      ]);
 
-      if (ledErr) {
-        console.error(ledErr);
+      if (ledgerRes.error) {
+        console.error(ledgerRes.error);
         setLoading(false);
         return;
       }
 
-      const rows = (data ?? []) as LedgerRow[];
+      const rows = (ledgerRes.data ?? []) as LedgerRow[];
+      const smData = stockMovesRes.data ?? [];
 
       /* -----------------------
          3) Running balance
@@ -101,8 +110,20 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       let running = cust.opening_balance ?? 0;
 
       const withRunning: Transaction[] = rows.map((r) => {
+        let pcs: number | null | undefined = null;
+        if (r.type === "Sale" || r.type === "Purchase") {
+          // Attempt to match with stock_moves
+          const match = smData.find(sm => 
+            String(sm.bill_no) === String(r.bill_no) && 
+            Number(sm.price_per_unit) === Number(r.price_per_unit) && 
+            Number(sm.qty) === Number(r.qty) && 
+            (!sm.product || !r.details || r.details.includes(sm.product.name))
+          );
+          if (match && match.qty_pcs) pcs = match.qty_pcs;
+        }
+
         running += r.amount;
-        return { ...r, running_balance: running };
+        return { ...r, running_balance: running, qty_pcs: pcs };
       });
 
       setCurrentBalance(
@@ -291,8 +312,9 @@ export default function CustomerDetailClient({ id }: { id: string }) {
                             </td>
                             <td>{t.type}</td>
                             <td>{t.details}</td>
-                            <td style={{ textAlign: "right" }}>
-                              {t.qty ?? "—"}
+                            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                              {/* @ts-ignore */}
+                              {t.qty_pcs ? `${t.qty_pcs} Pcs / ${t.qty} SqFt` : (t.qty ?? "—")}
                             </td>
                             <td style={{ textAlign: "right" }}>
                               {t.price_per_unit

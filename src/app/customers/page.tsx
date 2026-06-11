@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Customer = {
@@ -10,7 +10,7 @@ type Customer = {
 };
 
 export default function CustomersPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");

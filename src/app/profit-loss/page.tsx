@@ -7,7 +7,7 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 type ViewMode = "overview" | "payables" | "receivables" | "stock" | "executives";
 
 export default function ProfitLossPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [loading, setLoading] = useState(true);
 
@@ -204,7 +204,7 @@ export default function ProfitLossPage() {
     }
 
     fetchData();
-  }, []);
+  }, [supabase]);
 
   if (loading) {
      return <div className="page p-8 text-center text-gray-500">Loading analysis...</div>;

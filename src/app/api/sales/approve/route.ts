@@ -67,6 +67,88 @@ export async function POST(req: Request) {
 
   try {
     // ----------------------------------------------------------------------
+    // CONCURRENCY-SAFE BILL NUMBER ASSIGNMENT
+    // ----------------------------------------------------------------------
+    let finalBillNo = String(billNo).trim();
+    let isUnique = false;
+    let maxTries = 10;
+    
+    const isAutoNumber = /^\d+$/.test(finalBillNo);
+
+    while (!isUnique && maxTries > 0) {
+      await supabase.from("sales_approvals" as any).update({ bill_no: finalBillNo }).eq("id", approvalId);
+      
+      // Jitter to allow concurrent transactions to write proposals
+      await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 300));
+
+      const { data: conflicts } = await supabase
+        .from("sales_approvals" as any)
+        .select("id, created_at")
+        .eq("bill_no", finalBillNo)
+        .order("created_at", { ascending: true });
+
+      const weWon = conflicts && conflicts.length > 0 && String(conflicts[0].id) === String(approvalId);
+
+      if (weWon) {
+        const { data: historical } = await supabase
+          .from("stock_moves")
+          .select("id")
+          .eq("bill_no", finalBillNo)
+          .limit(1);
+
+        if (!historical || historical.length === 0) {
+          isUnique = true;
+          break;
+        }
+      }
+
+      if (!isAutoNumber) {
+        isUnique = true;
+        break; 
+      }
+
+      const { data: maxMoves } = await supabase
+        .from("stock_moves")
+        .select("bill_no")
+        .not("bill_no", "is", null)
+        .order("bill_no", { ascending: false })
+        .limit(20);
+
+      const { data: maxApps } = await supabase
+        .from("sales_approvals" as any)
+        .select("bill_no")
+        .not("bill_no", "is", null)
+        .order("bill_no", { ascending: false })
+        .limit(20);
+
+      let maxNum = 0;
+      const checkMax = (arr: any[]) => {
+        arr?.forEach((r) => {
+          const numMatch = r.bill_no?.match(/^(\d+)$/);
+          if (numMatch) {
+            const num = parseInt(numMatch[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        });
+      };
+
+      checkMax(maxMoves || []);
+      checkMax(maxApps || []);
+
+      if (maxNum > 0) {
+        finalBillNo = String(maxNum + 1);
+      } else {
+        finalBillNo = finalBillNo + "-" + Math.floor(Math.random() * 100);
+      }
+
+      maxTries--;
+    }
+
+    if (!isUnique) {
+      throw new Error("System is extremely busy. Could not securely allocate a unique bill number. Please try again.");
+    }
+
+    // ----------------------------------------------------------------------
     // REUSED LOGIC FROM /api/sales
     // ----------------------------------------------------------------------
 
@@ -111,17 +193,21 @@ export async function POST(req: Request) {
 
     // 2) STOCK MOVES
     const stockMoves: StockMove[] = (rows || [])
-      .filter((r: any) => r.product_id && r.qty > 0)
-      .map((r: any) => ({
-        ts,
-        kind: "sale",
-        customer_id: customer.id,
-        bill_no: billNo,
-        bill_date: billDate,
-        product_id: r.product_id,
-        qty: r.qty,
-        price_per_unit: r.rate,
-      }));
+      .filter((r: any) => r.product_id && (Number(r.qty) > 0 || Number(r.qty_sqft) > 0))
+      .map((r: any) => {
+        const isGranite = r.material?.toLowerCase() === "granite";
+        return {
+          ts,
+          kind: "sale",
+          customer_id: customer.id,
+          bill_no: finalBillNo,
+          bill_date: billDate,
+          product_id: r.product_id,
+          qty: isGranite ? Number(r.qty_sqft) || 0 : Number(r.qty) || 0,
+          qty_pcs: isGranite ? Number(r.qty) || 0 : null,
+          price_per_unit: r.rate,
+        };
+      });
 
     if (stockMoves.length) {
       const { error } = await supabase
@@ -144,7 +230,7 @@ export async function POST(req: Request) {
         direction: "in",
         amount: totalIn,
         method: customerPayment.method.toLowerCase(),
-        bill_no: billNo,
+        bill_no: finalBillNo,
       });
     }
 
@@ -166,7 +252,7 @@ export async function POST(req: Request) {
               direction: "out",
               amount: p.amount,
               method: "cash",
-              bill_no: billNo,
+              bill_no: finalBillNo,
             });
           } else {
             payments.push({
@@ -176,7 +262,7 @@ export async function POST(req: Request) {
               amount: p.amount,
               method: "cash",
               other_name: p.recipientName,
-              bill_no: billNo,
+              bill_no: finalBillNo,
             });
           }
         }
@@ -197,7 +283,7 @@ export async function POST(req: Request) {
       if (ex?.trim()) {
         adjustments.push({
           created_at: ts,
-          bill_no: billNo,
+          bill_no: finalBillNo,
           customer_id: customer.id,
           type: "executive",
           details: ex,
@@ -207,18 +293,18 @@ export async function POST(req: Request) {
     }
 
     if (gst > 0)
-      adjustments.push({ created_at: ts, bill_no: billNo, customer_id: customer.id, type: "charge", details: "GST", amount: gst });
+      adjustments.push({ created_at: ts, bill_no: finalBillNo, customer_id: customer.id, type: "charge", details: "GST", amount: gst });
     if (hamali > 0)
-      adjustments.push({ created_at: ts, bill_no: billNo, customer_id: customer.id, type: "charge", details: "Hamali", amount: hamali });
+      adjustments.push({ created_at: ts, bill_no: finalBillNo, customer_id: customer.id, type: "charge", details: "Hamali", amount: hamali });
     if (transport > 0)
-      adjustments.push({ created_at: ts, bill_no: billNo, customer_id: customer.id, type: "charge", details: "Transport", amount: transport });
+      adjustments.push({ created_at: ts, bill_no: finalBillNo, customer_id: customer.id, type: "charge", details: "Transport", amount: transport });
 
     if (Array.isArray(extraCharges)) {
       for (const c of extraCharges) {
         if (c.name && c.amount > 0) {
           adjustments.push({
             created_at: ts,
-            bill_no: billNo,
+            bill_no: finalBillNo,
             customer_id: customer.id,
             type: "charge",
             details: c.name,
@@ -231,7 +317,7 @@ export async function POST(req: Request) {
     if (discount?.amount > 0) {
       adjustments.push({
         created_at: ts,
-        bill_no: billNo,
+        bill_no: finalBillNo,
         customer_id: customer.id,
         type: "discount",
         details: discount.details || "Discount",
@@ -251,7 +337,7 @@ export async function POST(req: Request) {
     // ----------------------------------------------------------------------
     const { error: updateError } = await supabase
       .from("sales_approvals" as any)
-      .update({ status: "approved" })
+      .update({ status: "approved", bill_no: finalBillNo })
       .eq("id", approvalId);
 
     if (updateError) {

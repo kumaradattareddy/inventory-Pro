@@ -217,6 +217,7 @@ type Row = {
   size: string;
   unit: string;
   qty: string;
+  qty_sqft: string;
   rate: string;
 };
 
@@ -229,6 +230,7 @@ const makeEmptyRow = (): Row => ({
   size: "",
   unit: "",
   qty: "",
+  qty_sqft: "",
   rate: "",
 });
 const initialPayment = { advance: "", paidNow: "", method: "Cash" };
@@ -279,7 +281,11 @@ export default function SalesPage() {
   const [payouts, setPayouts] = useState([makeInitialPayout()]);
 
   /* -------------------------------- Calcs --------------------------------- */
-  const subtotal = rows.reduce((s, r) => s + n(r.qty) * n(r.rate), 0);
+  const subtotal = rows.reduce((s, r) => {
+    const isGranite = r.material?.toLowerCase() === "granite";
+    const qtyToUse = isGranite ? n(r.qty_sqft) : n(r.qty);
+    return s + qtyToUse * n(r.rate);
+  }, 0);
   const totalCharges =
     n(gst) +
     n(hamali) +
@@ -446,14 +452,15 @@ export default function SalesPage() {
       newCustomerOpeningBalance: n(newCustomerOpeningBalance),
       executives: execs,
       rows: rows
-        .filter((r) => r.product_id && (n(r.qty) > 0 || n(r.rate) >= 0))
+        .filter((r) => r.product_id && (n(r.qty) > 0 || n(r.rate) >= 0 || n(r.qty_sqft) > 0))
         .map((r) => ({
           product_id: r.product_id,
           product: r.product,
           material: r.material,
           size: r.size,
-          unit: r.unit,
+          unit: r.material?.toLowerCase() === "granite" ? "pcs" : r.unit,
           qty: n(r.qty),
+          qty_sqft: n(r.qty_sqft),
           rate: n(r.rate),
         })),
       customerPayment: {
@@ -475,6 +482,7 @@ export default function SalesPage() {
 
     if (!payload.billNo || !payload.customerName) {
       alert("❌ Bill Number and Customer Name are required.");
+      setSaving(false);
       return;
     }
 
@@ -699,27 +707,31 @@ export default function SalesPage() {
                 <th style={{ width: "20%" }}>Product</th>
                 <th style={{ width: "80px" }}>Material</th>
                 <th>Size</th>
-                <th style={{ width: "62px" }}>Unit</th>
-                <th style={{ width: "65px" }}>Qty</th>
+                <th style={{ width: "62px" }}>Unit / Pcs</th>
+                <th style={{ width: "65px" }}>Qty / SqFt</th>
                 <th style={{ width: "80px" }}>Rate</th>
                 <th style={{ width: "90px" }}>Amount</th>
                 <th style={{ width: "28px" }}></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const isGranite = r.material?.toLowerCase() === "granite";
+                
+                return (
                 <tr key={r._rowId}>
                   <td style={{ position: "relative", overflow: "visible" }}>
                     <AutocompleteInput
                       value={r.product}
                       onChange={(v) => patchRow(r._rowId, { product: v })}
                       onSelect={(p: ProductLite) => {
+                        const isGranite = p.material?.toLowerCase() === "granite";
                         patchRow(r._rowId, {
                           product_id: p.id,
                           product: p.name || "",
                           material: p.material || "",
                           size: p.size || "",
-                          unit: p.unit || "",
+                          unit: isGranite ? "pcs" : (p.unit || ""),
                           rate:
                             typeof p.rate === "number"
                               ? String(p.rate)
@@ -761,28 +773,56 @@ export default function SalesPage() {
                     />
                   </td>
                   <td>
-                    <input
-                      className="form-input"
-                      value={r.unit}
-                      onChange={(e) =>
-                        patchRow(r._rowId, { unit: e.target.value })
-                      }
-                      placeholder="e.g. box"
-                    />
+                    {isGranite ? (
+                      <input
+                        className="form-input"
+                        value={r.qty}
+                        onChange={(e) =>
+                          handleNum((v) => patchRow(r._rowId, { qty: v }), e.target.value)
+                        }
+                        placeholder="Pcs"
+                        style={{ borderColor: '#93c5fd', backgroundColor: '#eff6ff' }}
+                      />
+                    ) : (
+                      <input
+                        className="form-input"
+                        value={r.unit}
+                        onChange={(e) =>
+                          patchRow(r._rowId, { unit: e.target.value })
+                        }
+                        placeholder="e.g. box"
+                      />
+                    )}
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={r.qty}
-                      onChange={(e) =>
-                        handleNum(
-                          (v) => patchRow(r._rowId, { qty: v }),
-                          e.target.value
-                        )
-                      }
-                      placeholder="Qty"
-                    />
+                    {isGranite ? (
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={r.qty_sqft}
+                        onChange={(e) =>
+                          handleNum(
+                            (v) => patchRow(r._rowId, { qty_sqft: v }),
+                            e.target.value
+                          )
+                        }
+                        placeholder="Sq Ft"
+                        style={{ borderColor: '#d0d7de' }}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={r.qty}
+                        onChange={(e) =>
+                          handleNum(
+                            (v) => patchRow(r._rowId, { qty: v }),
+                            e.target.value
+                          )
+                        }
+                        placeholder="Qty"
+                      />
+                    )}
                   </td>
                   <td>
                     <input
@@ -799,7 +839,10 @@ export default function SalesPage() {
                     />
                   </td>
                   <td className="amount-cell">
-                    ₹{(n(r.qty) * n(r.rate)).toLocaleString("en-IN")}
+                    {(() => {
+                      const qtyToUse = isGranite ? n(r.qty_sqft) : n(r.qty);
+                      return `₹${(qtyToUse * n(r.rate)).toLocaleString("en-IN")}`;
+                    })()}
                   </td>
                   <td>
                     <button
@@ -811,7 +854,8 @@ export default function SalesPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           <button

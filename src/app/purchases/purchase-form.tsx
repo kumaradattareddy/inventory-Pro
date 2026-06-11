@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 
@@ -13,7 +13,10 @@ type Row = {
   unit: string;
   qty: number | "";
   price: number | "";
+  qty_sqft?: number | "";
 };
+
+const GRANITE_SUPPLIER_IDS = [4, 6, 7, 8, 9, 10, 25, 26, 28, 35, 36, 45];
 
 type Supplier = {
   id: number;
@@ -36,7 +39,7 @@ type Props = {
 /* ================= COMPONENT ================= */
 
 export default function PurchaseForm({ onSaveSuccess }: Props) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   /* ---------- Supplier State ---------- */
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -50,7 +53,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
 
   /* ---------- Rows ---------- */
   const [rows, setRows] = useState<Row[]>([
-    { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
+    { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "", qty_sqft: "" },
   ]);
 
   /* ---------- Products ---------- */
@@ -113,7 +116,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
+      { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "", qty_sqft: "" },
     ]);
 
   const removeRow = (index: number) => {
@@ -164,7 +167,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     if (!supplierName.trim()) return alert("Enter supplier");
 
     const validRows = rows.filter(
-      (r) => r.product && Number(r.qty) > 0 && Number(r.price) > 0
+      (r) => r.product && (Number(r.qty) > 0 || Number(r.qty_sqft) > 0) && Number(r.price) > 0
     );
     if (validRows.length === 0) return alert("Add valid items");
 
@@ -216,11 +219,13 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           productId = data!.id;
         }
 
+        const isGranite = row.material?.toLowerCase() === "granite" || isGraniteSupplier;
         await supabase.from("stock_moves").insert({
           kind: "purchase",
           supplier_id: supplierId,
           product_id: productId,
-          qty: Number(row.qty),
+          qty: isGranite ? Number(row.qty_sqft) || 0 : Number(row.qty) || 0,
+          qty_pcs: isGranite ? Number(row.qty) || 0 : null,
           price_per_unit: Number(row.price),
           bill_no: billNo || null,
           bill_date: billDate || null,
@@ -230,7 +235,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
 
       alert("Purchase saved ✅");
       setRows([
-        { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "" },
+        { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "", qty_sqft: "" },
       ]);
       setSupplierName("");
       setBillNo("");
@@ -242,7 +247,21 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     }
   };
 
-  const total = rows.reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
+  // Check if selected supplier is a granite supplier
+  const selectedSupplier = suppliers.find(
+    (s) => s.name?.toLowerCase() === supplierName.toLowerCase()
+  );
+  const isGraniteSupplier = selectedSupplier
+    ? GRANITE_SUPPLIER_IDS.includes(selectedSupplier.id)
+    : false;
+
+  const anyGranite = isGraniteSupplier || rows.some(r => r.material?.toLowerCase() === "granite");
+
+  const total = rows.reduce((s, r) => {
+    const isGraniteRow = isGraniteSupplier || r.material?.toLowerCase() === "granite";
+    const qtyToUse = isGraniteRow ? (Number(r.qty_sqft) || 0) : (Number(r.qty) || 0);
+    return s + qtyToUse * (Number(r.price) || 0);
+  }, 0);
 
   /* ================= UI ================= */
 
@@ -304,8 +323,8 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
               <th>Material</th>
               <th>Size</th>
               <th>Product</th>
-              <th>Unit</th>
-              <th>Qty</th>
+              <th>{anyGranite ? "Unit / Pcs" : "Unit"}</th>
+              <th>{anyGranite ? "Qty / SqFt" : "Qty"}</th>
               <th>Price</th>
               <th style={{ textAlign: "right" }}>Amount</th>
               <th />
@@ -366,24 +385,57 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                 </td>
 
                 <td>
-                  <input
-                    className="form-input"
-                    value={row.unit}
-                    onChange={(e) =>
-                      updateRow(i, "unit", e.target.value)
-                    }
-                  />
+                  {(() => {
+                    const isGraniteRow = isGraniteSupplier || row.material?.toLowerCase() === "granite";
+                    return isGraniteRow ? (
+                      <input
+                        className="form-input"
+                        type="number"
+                        placeholder="pcs"
+                        value={row.qty}
+                        onChange={(e) =>
+                          updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                        style={{ borderColor: '#93c5fd', backgroundColor: '#eff6ff' }}
+                      />
+                    ) : (
+                      <input
+                        className="form-input"
+                        value={row.unit}
+                        onChange={(e) =>
+                          updateRow(i, "unit", e.target.value)
+                        }
+                      />
+                    );
+                  })()}
                 </td>
 
                 <td>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={row.qty}
-                    onChange={(e) =>
-                      updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                  />
+                  {(() => {
+                    const isGraniteRow = isGraniteSupplier || row.material?.toLowerCase() === "granite";
+                    return isGraniteRow ? (
+                      <input
+                        className="form-input"
+                        type="number"
+                        placeholder="sq ft"
+                        value={row.qty_sqft}
+                        onChange={(e) =>
+                          updateRow(i, "qty_sqft", e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                        style={{ borderColor: '#d0d7de' }}
+                      />
+                    ) : (
+                      <input
+                        className="form-input"
+                        type="number"
+                        placeholder="qty"
+                        value={row.qty}
+                        onChange={(e) =>
+                          updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                      />
+                    );
+                  })()}
                 </td>
 
                 <td>
@@ -398,7 +450,11 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                 </td>
 
                 <td style={{ textAlign: "right" }}>
-                  ₹{((Number(row.qty) || 0) * (Number(row.price) || 0)).toLocaleString("en-IN")}
+                  {(() => {
+                    const isGraniteRow = isGraniteSupplier || row.material?.toLowerCase() === "granite";
+                    const qtyToUse = isGraniteRow ? (Number(row.qty_sqft) || 0) : (Number(row.qty) || 0);
+                    return `₹${(qtyToUse * (Number(row.price) || 0)).toLocaleString("en-IN")}`;
+                  })()}
                 </td>
 
                 <td>

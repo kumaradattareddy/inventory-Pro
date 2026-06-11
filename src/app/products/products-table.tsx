@@ -14,13 +14,27 @@ type Product = {
 }
 
 export default function ProductsTable({ products }: { products: Product[] }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const [rows, setRows] = useState(products)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [delta, setDelta] = useState<Record<number, number>>({})
   const [savingId, setSavingId] = useState<number | null>(null)
+
+  // Restore scroll position when returning from product detail
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual'
+    }
+    const y = sessionStorage.getItem('products-scroll')
+    if (y) {
+      setTimeout(() => {
+        window.scrollTo(0, Number(y))
+        sessionStorage.removeItem('products-scroll')
+      }, 150)
+    }
+  }, [])
 
   // ✅ DEBOUNCE SEARCH (fixes lag)
   useEffect(() => {
@@ -58,6 +72,7 @@ export default function ProductsTable({ products }: { products: Product[] }) {
         qty: Math.abs(d),
         kind: d > 0 ? 'adjustment_in' : 'adjustment_out',
         notes: 'Manual stock adjustment',
+        ts: new Date().toISOString(),
       })
 
       if (error) throw error
@@ -76,6 +91,8 @@ export default function ProductsTable({ products }: { products: Product[] }) {
         delete copy[p.id]
         return copy
       })
+    } catch {
+      alert('Failed to save stock adjustment. Please try again.')
     } finally {
       setSavingId(null)
     }
@@ -83,8 +100,29 @@ export default function ProductsTable({ products }: { products: Product[] }) {
 
   return (
     <>
-      {/* ✅ FULL WIDTH SEARCH BAR (OLD UI STYLE) */}
-      <div style={{ padding: '16px' }}>
+      {/* Header with Granite button */}
+      <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <h2 style={{ margin: 0, flex: 1 }}>Products</h2>
+        <a
+          href="/products/granite"
+          className="btn"
+          style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: 6, 
+            fontSize: 14,
+            fontWeight: 600,
+            backgroundColor: '#dcfce7',
+            color: '#166534',
+            border: '1px solid #bbf7d0'
+          }}
+        >
+          🪨 Granite Stock
+        </a>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ padding: '0 16px 16px' }}>
         <input
           type="search"
           placeholder="Search products..."
@@ -105,11 +143,11 @@ export default function ProductsTable({ products }: { products: Product[] }) {
         <thead>
           <tr>
             <th>NAME</th>
-            <th>SIZE</th>
+            <th style={{ minWidth: 200 }}>SIZE</th>
             <th>CURRENT STOCK</th>
             <th>UNIT</th>
             <th>SUPPLIER</th>
-            <th style={{ width: 220 }}>ACTIONS</th>
+            <th>ACTIONS</th>
           </tr>
         </thead>
 
@@ -131,9 +169,26 @@ export default function ProductsTable({ products }: { products: Product[] }) {
                 <td>{p.supplier_name ?? '-'}</td>
 
                 <td>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button className="btn-icon" onClick={() => change(p.id, -1)}>−</button>
-                    <button className="btn-icon" onClick={() => change(p.id, 1)}>+</button>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', whiteSpace: 'nowrap' }}>
+                    <button className="btn-icon" style={{ width: 28, height: 28, fontSize: 16 }} onClick={() => change(p.id, -1)}>−</button>
+                    <input
+                      type="number"
+                      value={d || ''}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0
+                        setDelta((prev) => ({ ...prev, [p.id]: val }))
+                      }}
+                      style={{
+                        width: 48,
+                        padding: '3px 4px',
+                        textAlign: 'center',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7de',
+                        fontSize: 13,
+                      }}
+                    />
+                    <button className="btn-icon" style={{ width: 28, height: 28, fontSize: 16 }} onClick={() => change(p.id, 1)}>+</button>
 
                     {d !== 0 && (
                       <button

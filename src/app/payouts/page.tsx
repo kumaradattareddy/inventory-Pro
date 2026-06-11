@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 
@@ -15,7 +15,7 @@ type Payout = {
 };
 
 export default function PayoutsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +66,7 @@ export default function PayoutsPage() {
     }
 
     fetchPayouts();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, supabase]);
 
   // Grouping Logic
   type GroupedPayout = {

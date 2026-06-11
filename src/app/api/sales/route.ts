@@ -80,17 +80,21 @@ export async function POST(req: Request) {
 
     // 2) STOCK MOVES
     const stockMoves: StockMove[] = (rows || [])
-      .filter((r: any) => r.product_id && r.qty > 0)
-      .map((r: any) => ({
-        ts,
-        kind: "sale",
-        customer_id: customer.id,
-        bill_no: billNo,
-        bill_date: billDate,
-        product_id: r.product_id,
-        qty: r.qty,
-        price_per_unit: r.rate,
-      }));
+      .filter((r: any) => r.product_id && (Number(r.qty) > 0 || Number(r.qty_sqft) > 0))
+      .map((r: any) => {
+        const isGranite = r.material?.toLowerCase() === "granite";
+        return {
+          ts,
+          kind: "sale",
+          customer_id: customer.id,
+          bill_no: billNo,
+          bill_date: billDate,
+          product_id: r.product_id,
+          qty: isGranite ? Number(r.qty_sqft) || 0 : Number(r.qty) || 0,
+          qty_pcs: isGranite ? Number(r.qty) || 0 : null,
+          price_per_unit: r.rate,
+        };
+      });
 
     if (stockMoves.length) {
       const { error } = await supabase
