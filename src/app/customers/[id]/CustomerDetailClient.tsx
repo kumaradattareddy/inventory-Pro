@@ -63,26 +63,14 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       const customerId = Number(id);
 
       /* -----------------------
-         1) Fetch customer
+         Fetch customer, ledger, and stock_moves ALL in parallel
       ------------------------ */
-      const { data: cust, error: custErr } = await supabase
-        .from("customers")
-        .select("id, name, opening_balance")
-        .eq("id", customerId)
-        .single();
-
-      if (custErr) {
-        console.error(custErr);
-        setLoading(false);
-        return;
-      }
-
-      setCustomer(cust);
-
-      /* -----------------------
-         2) Fetch ledger and stock_moves
-      ------------------------ */
-      const [ledgerRes, stockMovesRes] = await Promise.all([
+      const [custRes, ledgerRes, stockMovesRes] = await Promise.all([
+        supabase
+          .from("customers")
+          .select("id, name, opening_balance")
+          .eq("id", customerId)
+          .single(),
         supabase
           .from("bill_transaction_ledger")
           .select("*")
@@ -94,6 +82,15 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           .eq("customer_id", customerId)
           .in("kind", ["sale", "purchase"])
       ]);
+
+      if (custRes.error) {
+        console.error(custRes.error);
+        setLoading(false);
+        return;
+      }
+
+      const cust = custRes.data;
+      setCustomer(cust);
 
       if (ledgerRes.error) {
         console.error(ledgerRes.error);
@@ -122,8 +119,9 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           if (match && match.qty_pcs) pcs = match.qty_pcs;
         }
 
-        running += r.amount;
-        return { ...r, running_balance: running, qty_pcs: pcs };
+        const rawRunning = running + r.amount;
+        running = Math.round(rawRunning * 100) / 100;
+        return { ...r, running_balance: running === -0 ? 0 : running, qty_pcs: pcs };
       });
 
       setCurrentBalance(
@@ -157,15 +155,20 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           /* -----------------------
              Bill summary (CORRECT)
           ------------------------ */
-          const billNet = items
-            .filter((i) => ["Sale", "Charge", "Discount"].includes(i.type))
-            .reduce((s, i) => s + i.amount, 0);
+          const billNet = Math.round(
+            items
+              .filter((i) => ["Sale", "Charge", "Discount"].includes(i.type))
+              .reduce((s, i) => s + i.amount, 0)
+          * 100) / 100;
 
-          const totalPaid = items
-            .filter((i) => i.type === "Payment" || i.type === "Payout")
-            .reduce((s, i) => s + Math.abs(i.amount), 0);
+          const totalPaid = Math.round(
+            items
+              .filter((i) => i.type === "Payment" || i.type === "Payout")
+              .reduce((s, i) => s + Math.abs(i.amount), 0)
+          * 100) / 100;
 
-          const billBalance = billNet - totalPaid;
+          const rawBillBalance = billNet - totalPaid;
+          const billBalance = Math.round(rawBillBalance * 100) / 100;
 
           return {
             billNo,

@@ -49,7 +49,11 @@ export async function POST(req: Request) {
     payouts,
     gst,
     hamali,
+    hamaliName,
+    isHamaliPaid,
     transport,
+    transportName,
+    isTransportPaid,
     extraCharges,
     discount,
   } = body;
@@ -237,36 +241,86 @@ export async function POST(req: Request) {
     if (Array.isArray(payouts)) {
       for (const p of payouts) {
         if (p.amount > 0 && p.recipientName?.trim()) {
-          // Attempt to find if this recipient is actually a tracked Party/Customer
-          const { data: party } = await supabase
-            .from("customers")
+          const rName = p.recipientName.trim();
+
+          // 1. Check if recipient is a Supplier
+          const { data: supplierMatch } = await supabase
+            .from("suppliers")
             .select("id")
-            .eq("name", p.recipientName.trim())
+            .ilike("name", rName)
             .maybeSingle();
 
-          if (party) {
+          if (supplierMatch) {
+            payments.push({
+              ts,
+              party_type: "supplier",
+              direction: "out",
+              amount: p.amount,
+              method: "cash",
+              party_id: supplierMatch.id,
+              bill_no: finalBillNo,
+            });
+            continue;
+          }
+
+          // 2. Check if recipient is a Customer
+          const { data: customerMatch } = await supabase
+            .from("customers")
+            .select("id")
+            .ilike("name", rName)
+            .maybeSingle();
+
+          if (customerMatch) {
             payments.push({
               ts,
               party_type: "customer",
-              customer_id: party.id,
+              customer_id: customerMatch.id,
               direction: "out",
               amount: p.amount,
               method: "cash",
               bill_no: finalBillNo,
             });
-          } else {
-            payments.push({
-              ts,
-              party_type: "others",
-              direction: "out",
-              amount: p.amount,
-              method: "cash",
-              other_name: p.recipientName,
-              bill_no: finalBillNo,
-            });
+            continue;
           }
+
+          // 3. Otherwise treat as 'others'
+          payments.push({
+            ts,
+            party_type: "others",
+            direction: "out",
+            amount: p.amount,
+            method: "cash",
+            other_name: p.recipientName,
+            bill_no: finalBillNo,
+          });
         }
       }
+    }
+
+    if (hamali > 0 && hamaliName?.trim() && isHamaliPaid) {
+      payments.push({
+        ts,
+        party_type: "others",
+        direction: "out",
+        amount: hamali,
+        method: "cash",
+        other_name: hamaliName.trim(),
+        bill_no: finalBillNo,
+        notes: "Hamali (Paid instantly)",
+      } as any);
+    }
+
+    if (transport > 0 && transportName?.trim() && isTransportPaid) {
+      payments.push({
+        ts,
+        party_type: "others",
+        direction: "out",
+        amount: transport,
+        method: "cash",
+        other_name: transportName.trim(),
+        bill_no: finalBillNo,
+        notes: "Transport (Paid instantly)",
+      } as any);
     }
 
     if (payments.length) {
@@ -275,6 +329,7 @@ export async function POST(req: Request) {
         .insert(payments);
       if (error) throw new Error(error.message);
     }
+
 
     // 4) BILL ADJUSTMENTS
     const adjustments: BillAdjustment[] = [];

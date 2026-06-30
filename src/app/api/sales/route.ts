@@ -22,7 +22,11 @@ export async function POST(req: Request) {
     payouts,
     gst,
     hamali,
+    hamaliName,
+    isHamaliPaid,
     transport,
+    transportName,
+    isTransportPaid,
     extraCharges,
     discount,
   } = body;
@@ -124,17 +128,64 @@ export async function POST(req: Request) {
     if (Array.isArray(payouts)) {
       for (const p of payouts) {
         if (p.amount > 0 && p.recipientName?.trim()) {
-          payments.push({
-            ts,
-            party_type: "others",
-            direction: "out",
-            amount: p.amount,
-            method: "cash",
-            other_name: p.recipientName,
-            bill_no: billNo,
-          });
+          const rName = p.recipientName.trim();
+          
+          // Check if the recipient name matches an existing supplier
+          const { data: supplierMatch } = await supabase
+            .from("suppliers")
+            .select("id")
+            .ilike("name", rName)
+            .maybeSingle();
+
+          if (supplierMatch) {
+            payments.push({
+              ts,
+              party_type: "supplier",
+              direction: "out",
+              amount: p.amount,
+              method: "cash",
+              party_id: supplierMatch.id,
+              bill_no: billNo,
+            });
+          } else {
+            payments.push({
+              ts,
+              party_type: "others",
+              direction: "out",
+              amount: p.amount,
+              method: "cash",
+              other_name: rName,
+              bill_no: billNo,
+            });
+          }
         }
       }
+    }
+
+    if (hamali > 0 && hamaliName?.trim() && isHamaliPaid) {
+      payments.push({
+        ts,
+        party_type: "others",
+        direction: "out",
+        amount: hamali,
+        method: "cash",
+        other_name: hamaliName.trim(),
+        bill_no: billNo,
+        notes: "Hamali (Paid instantly)",
+      } as any);
+    }
+
+    if (transport > 0 && transportName?.trim() && isTransportPaid) {
+      payments.push({
+        ts,
+        party_type: "others",
+        direction: "out",
+        amount: transport,
+        method: "cash",
+        other_name: transportName.trim(),
+        bill_no: billNo,
+        notes: "Transport (Paid instantly)",
+      } as any);
     }
 
     if (payments.length) {
@@ -143,6 +194,7 @@ export async function POST(req: Request) {
         .insert(payments);
       if (error) throw new Error(error.message);
     }
+
 
     // 4) BILL ADJUSTMENTS
     const adjustments: BillAdjustment[] = [];

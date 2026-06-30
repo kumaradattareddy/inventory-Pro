@@ -39,6 +39,7 @@ function AutocompleteInput({
   getKey,
   reserveSpace = true,
   dropdownMaxHeight = 220,
+  showOnFocus = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -50,6 +51,7 @@ function AutocompleteInput({
   getKey?: (i: any) => string | number;
   reserveSpace?: boolean;
   dropdownMaxHeight?: number;
+  showOnFocus?: boolean;
 }) {
   const [results, setResults] = useState<any[]>([]);
   const [focused, setFocused] = useState(false);
@@ -64,7 +66,13 @@ function AutocompleteInput({
   useEffect(() => {
     let ignore = false;
     async function run() {
-      if (!focused || dv.length < 1) {
+      if (!focused) {
+        setResults([]);
+        setShow(false);
+        setSpacerH(0);
+        return;
+      }
+      if (!showOnFocus && dv.length < 1) {
         setResults([]);
         setShow(false);
         setSpacerH(0);
@@ -272,13 +280,25 @@ export default function SalesPage() {
   // Charges (GST first)
   const [gst, setGst] = useState("");
   const [hamali, setHamali] = useState("");
+  const [hamaliName, setHamaliName] = useState("");
+  const [isHamaliPaid, setIsHamaliPaid] = useState(false);
   const [transport, setTransport] = useState("");
+  const [transportName, setTransportName] = useState("");
+  const [isTransportPaid, setIsTransportPaid] = useState(false);
   const [extraCharges, setExtraCharges] = useState([makeInitialOtherCharge()]);
   const [discount, setDiscount] = useState(initialDiscount);
 
   // Payments / payouts
   const [customerPayment, setCustomerPayment] = useState(initialPayment);
   const [payouts, setPayouts] = useState([makeInitialPayout()]);
+  const [allRecipients, setAllRecipients] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/recipients/all')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setAllRecipients(data); })
+      .catch(() => {});
+  }, []);
 
   /* -------------------------------- Calcs --------------------------------- */
   const subtotal = rows.reduce((s, r) => {
@@ -372,13 +392,20 @@ export default function SalesPage() {
   };
   const fetchRecipients = async (q: string) => {
     try {
-      const r = await fetch(
-        `/api/recipients/search?q=${encodeURIComponent(q)}`
-      );
-      return r.ok ? r.json() : [];
+      const query = q.trim().toLowerCase();
+      if (!query) return allRecipients.map(name => ({ name }));
+      return allRecipients
+        .filter(r => r.toLowerCase().includes(query))
+        .map(name => ({ name }));
     } catch {
       return [];
     }
+  };
+
+  const isUnknownName = (name: string) => {
+    const nm = name.trim();
+    if (!nm) return false;
+    return !allRecipients.some(r => r.toLowerCase() === nm.toLowerCase());
   };
 
   /* --------------------------- Customer selection -------------------------- */
@@ -426,7 +453,11 @@ export default function SalesPage() {
 
     setGst("");
     setHamali("");
+    setHamaliName("");
+    setIsHamaliPaid(false);
     setTransport("");
+    setTransportName("");
+    setIsTransportPaid(false);
     setExtraCharges([makeInitialOtherCharge()]);
     setDiscount(initialDiscount);
 
@@ -437,12 +468,45 @@ export default function SalesPage() {
   async function saveSale() {
     if (saving) return;
     setSaving(true);
-    // executives array (0–2 names)
+
+    // Executives
     const execs: string[] = [];
     const e1 = exec1 === OTHER_SENTINEL ? exec1Other.trim() : exec1;
     const e2 = exec2 === OTHER_SENTINEL ? exec2Other.trim() : exec2;
     if (e1 && e1.trim()) execs.push(e1.trim());
     if (addSecondExec && e2 && e2.trim()) execs.push(e2.trim());
+
+    // Typo guard: check all recipient names against known list
+    let recipientList = allRecipients;
+    if (recipientList.length === 0) {
+      try {
+        const res = await fetch('/api/recipients/all');
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          recipientList = data;
+          setAllRecipients(data);
+        }
+      } catch { /* proceed with empty list */ }
+    }
+
+    const allUnrecognized: string[] = [];
+    const checkName = (name: string) => {
+      const nm = name.trim();
+      if (nm && !recipientList.some(r => r.toLowerCase() === nm.toLowerCase())) {
+        allUnrecognized.push(nm);
+      }
+    };
+    checkName(hamaliName);
+    checkName(transportName);
+    payouts.forEach(p => checkName(p.recipientName));
+
+    if (allUnrecognized.length > 0) {
+      const confirmMsg = `⚠️ These names are NOT in your system (possible typos):\n\n${Array.from(new Set(allUnrecognized)).map(n => "• " + n).join('\n')}\n\nDo you want to proceed and create them as NEW recipients?`;
+      if (!window.confirm(confirmMsg)) {
+        setSaving(false);
+        return;
+      }
+    }
 
     const payload = {
       billNo,
@@ -473,7 +537,11 @@ export default function SalesPage() {
         .map((p) => ({ recipientName: p.recipientName, amount: n(p.amount) })),
       gst: n(gst),
       hamali: n(hamali),
+      hamaliName,
+      isHamaliPaid,
       transport: n(transport),
+      transportName,
+      isTransportPaid,
       extraCharges: extraCharges
         .filter((c) => c.name?.trim())
         .map((c) => ({ ...c, amount: n(c.amount) })),
@@ -885,33 +953,91 @@ export default function SalesPage() {
                 onChange={(e) => handleNum(setGst, e.target.value)}
               />
             </div>
-            <div className="payout-row">
-              <input
-                className="form-input bg-gray-50"
-                value="Hamali"
-                readOnly
-              />
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Amount"
-                value={hamali}
-                onChange={(e) => handleNum(setHamali, e.target.value)}
-              />
+            <div className="flex flex-col gap-2">
+              <div className="payout-row">
+                <input
+                  className="form-input bg-gray-50"
+                  value="Hamali"
+                  readOnly
+                />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Amount"
+                  value={hamali}
+                  onChange={(e) => handleNum(setHamali, e.target.value)}
+                />
+              </div>
+              {n(hamali) > 0 && (
+                <div className="payout-row items-center">
+                  <div className="flex-1">
+                    <AutocompleteInput
+                      value={hamaliName}
+                      onChange={setHamaliName}
+                      onSelect={(rec) => setHamaliName(rec.name)}
+                      fetchSuggestions={fetchRecipients}
+                      placeholder="Hamali Name"
+                      showOnFocus
+                    />
+                    {isUnknownName(hamaliName) && (
+                      <div style={{ color: '#dc2626', fontSize: '12px', fontWeight: 600, marginTop: 2 }}>⚠️ "{hamaliName}" not found — possible typo?</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="hamaliPaid" 
+                      checked={isHamaliPaid}
+                      onChange={(e) => setIsHamaliPaid(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="hamaliPaid" className="text-sm font-medium text-gray-700 whitespace-nowrap">Paid from Counter</label>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="payout-row">
-              <input
-                className="form-input bg-gray-50"
-                value="Transport"
-                readOnly
-              />
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Amount"
-                value={transport}
-                onChange={(e) => handleNum(setTransport, e.target.value)}
-              />
+            <div className="flex flex-col gap-2">
+              <div className="payout-row">
+                <input
+                  className="form-input bg-gray-50"
+                  value="Transport"
+                  readOnly
+                />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Amount"
+                  value={transport}
+                  onChange={(e) => handleNum(setTransport, e.target.value)}
+                />
+              </div>
+              {n(transport) > 0 && (
+                <div className="payout-row items-center">
+                  <div className="flex-1">
+                    <AutocompleteInput
+                      value={transportName}
+                      onChange={setTransportName}
+                      onSelect={(rec) => setTransportName(rec.name)}
+                      fetchSuggestions={fetchRecipients}
+                      placeholder="Transporter Name"
+                      showOnFocus
+                    />
+                    {isUnknownName(transportName) && (
+                      <div style={{ color: '#dc2626', fontSize: '12px', fontWeight: 600, marginTop: 2 }}>⚠️ "{transportName}" not found — possible typo?</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="transportPaid" 
+                      checked={isTransportPaid}
+                      onChange={(e) => setIsTransportPaid(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="transportPaid" className="text-sm font-medium text-gray-700 whitespace-nowrap">Paid from Counter</label>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1095,16 +1221,22 @@ export default function SalesPage() {
           <div className="card-body">
             <div className="payout-container">
               {payouts.map((p, i) => (
-                <div key={i} className="payout-row">
-                  <AutocompleteInput
-                    value={p.recipientName}
-                    onChange={(v) => patchPayout(i, "recipientName", v)}
-                    onSelect={(rec) =>
-                      patchPayout(i, "recipientName", rec.name)
-                    }
-                    fetchSuggestions={fetchRecipients}
-                    placeholder="Recipient Name (e.g., Vikas)"
-                  />
+                <div key={i} className="payout-row" style={{ flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <AutocompleteInput
+                      value={p.recipientName}
+                      onChange={(v) => patchPayout(i, "recipientName", v)}
+                      onSelect={(rec) =>
+                        patchPayout(i, "recipientName", rec.name)
+                      }
+                      fetchSuggestions={fetchRecipients}
+                      placeholder="Recipient Name (e.g., Vikas)"
+                      showOnFocus
+                    />
+                    {isUnknownName(p.recipientName) && (
+                      <div style={{ color: '#dc2626', fontSize: '12px', fontWeight: 600, marginTop: 2 }}>⚠️ "{p.recipientName}" not found — possible typo?</div>
+                    )}
+                  </div>
                   <input
                     type="text"
                     className="form-input"

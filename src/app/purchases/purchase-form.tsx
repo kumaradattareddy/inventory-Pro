@@ -48,8 +48,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
   /* ---------- Header ---------- */
-  const [billNo, setBillNo] = useState("");
-  const [billDate, setBillDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [billDate, setBillDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   /* ---------- Rows ---------- */
   const [rows, setRows] = useState<Row[]>([
@@ -227,9 +226,8 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           qty: isGranite ? Number(row.qty_sqft) || 0 : Number(row.qty) || 0,
           qty_pcs: isGranite ? Number(row.qty) || 0 : null,
           price_per_unit: Number(row.price),
-          bill_no: billNo || null,
           bill_date: billDate || null,
-          ts: new Date().toISOString(),
+          ts: billDate ? new Date(billDate + "T12:00:00").toISOString() : new Date().toISOString(),
         });
       }
 
@@ -238,7 +236,6 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
         { material: "Tiles", size: "", product: "", unit: "", qty: "", price: "", qty_sqft: "" },
       ]);
       setSupplierName("");
-      setBillNo("");
       onSaveSuccess();
     } catch (e: any) {
       alert(e.message);
@@ -263,16 +260,42 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
     return s + qtyToUse * (Number(r.price) || 0);
   }, 0);
 
+  const normalQty = rows.reduce((s, r) => {
+    const isGraniteRow = isGraniteSupplier || r.material?.toLowerCase() === "granite";
+    return s + (!isGraniteRow ? (Number(r.qty) || 0) : 0);
+  }, 0);
+
+  const granitePcs = rows.reduce((s, r) => {
+    const isGraniteRow = isGraniteSupplier || r.material?.toLowerCase() === "granite";
+    return s + (isGraniteRow ? (Number(r.qty) || 0) : 0);
+  }, 0);
+
+  const graniteSqFt = rows.reduce((s, r) => {
+    const isGraniteRow = isGraniteSupplier || r.material?.toLowerCase() === "granite";
+    return s + (isGraniteRow ? (Number(r.qty_sqft) || 0) : 0);
+  }, 0);
+
+  let displayTotal = "0";
+  if (anyGranite) {
+    if (normalQty > 0) {
+      displayTotal = `${normalQty} + ${granitePcs} Pcs / ${graniteSqFt} SqFt`;
+    } else {
+      displayTotal = `${granitePcs} Pcs / ${graniteSqFt} SqFt`;
+    }
+  } else {
+    displayTotal = `${normalQty}`;
+  }
+
   /* ================= UI ================= */
 
   return (
-    <div className="card">
-      <div className="card-body">
+    <div className="card" style={{ paddingTop: 0 }}>
+      <div className="card-body" style={{ paddingTop: "12px", paddingBottom: "12px" }}>
 
         {/* 🔹 HEADER */}
-        <div className="form-grid">
-          <div style={{ gridColumn: "span 2", position: "relative" }}>
-            <label>Supplier</label>
+        <div className="form-grid" style={{ marginBottom: "12px", gap: "16px" }}>
+          <div style={{ gridColumn: "span 2", position: "relative", marginTop: 0 }}>
+            <label style={{ marginTop: 0 }}>Supplier</label>
             <input
               className="form-input"
               placeholder="Search or create new supplier"
@@ -297,21 +320,16 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
           </div>
 
           <div>
-            <label>Bill No.</label>
-            <input
-              className="form-input"
-              value={billNo}
-              onChange={(e) => setBillNo(e.target.value)}
-            />
-          </div>
-
-          <div>
             <label>Bill Date</label>
             <input
               type="date"
               className="form-input"
               value={billDate}
-              onChange={(e) => setBillDate(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setBillDate(e.target.value);
+                }
+              }}
             />
           </div>
         </div>
@@ -342,10 +360,9 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                       updateRow(i, "material", e.target.value)
                     }
                   >
-                    {materials.map((m) => (
-                      <option key={m}>{m}</option>
-                    ))}
-                    <option>Others</option>
+                    <option value="Tiles">Tiles</option>
+                    <option value="Granite">Granite</option>
+                    <option value="Others">Others</option>
                   </select>
                 </td>
 
@@ -396,6 +413,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                         onChange={(e) =>
                           updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         style={{ borderColor: '#93c5fd', backgroundColor: '#eff6ff' }}
                       />
                     ) : (
@@ -422,6 +440,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                         onChange={(e) =>
                           updateRow(i, "qty_sqft", e.target.value === "" ? "" : Number(e.target.value))
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         style={{ borderColor: '#d0d7de' }}
                       />
                     ) : (
@@ -433,6 +452,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                         onChange={(e) =>
                           updateRow(i, "qty", e.target.value === "" ? "" : Number(e.target.value))
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                       />
                     );
                   })()}
@@ -446,6 +466,7 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
                     onChange={(e) =>
                       updateRow(i, "price", e.target.value === "" ? "" : Number(e.target.value))
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                   />
                 </td>
 
@@ -471,19 +492,68 @@ export default function PurchaseForm({ onSaveSuccess }: Props) {
         </table>
 
         {/* 🔹 FOOTER */}
-        <div className="purchase-footer">
-          <button className="btn-secondary" onClick={addRow}>
-            + Add Item
-          </button>
-
-          <div className="purchase-summary">
-            <div className="total">
-              Total: <span>₹{total.toLocaleString("en-IN")}</span>
+        <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          
+          {/* Summary Row */}
+          <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center", 
+            padding: "16px 20px", 
+            background: "#f8fafc", 
+            border: "1px solid #e2e8f0", 
+            borderRadius: "8px" 
+          }}>
+            <div style={{ fontSize: "16px", fontWeight: 600, color: "#64748b" }}>
+              Total Items: 
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", marginLeft: "12px" }}>
+                {displayTotal}
+              </span>
             </div>
+            
+            <div style={{ fontSize: "18px", fontWeight: 600, color: "#64748b" }}>
+              Total: 
+              <span style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginLeft: "12px" }}>
+                ₹{total.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          {/* Actions Row */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button 
+              className="btn-secondary" 
+              onClick={addRow}
+              style={{
+                padding: "10px 20px",
+                fontSize: "15px",
+                fontWeight: 600,
+                borderRadius: "8px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              + Add Item
+            </button>
+
             <button
               className="btn-primary"
               onClick={savePurchase}
               disabled={isSaving}
+              style={{
+                padding: "14px 36px",
+                fontSize: "16px",
+                fontWeight: 600,
+                borderRadius: "8px",
+                cursor: isSaving ? "not-allowed" : "pointer",
+                border: "none",
+                background: "#2563eb",
+                color: "white",
+                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)",
+                transition: "all 0.2s"
+              }}
             >
               {isSaving ? "Saving..." : "Save Purchase"}
             </button>
