@@ -75,12 +75,14 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           .from("bill_transaction_ledger")
           .select("*")
           .eq("customer_id", customerId)
-          .order("date", { ascending: true }),
+          .order("date", { ascending: true })
+          .limit(5000),
         supabase
           .from("stock_moves")
           .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name)")
           .eq("customer_id", customerId)
           .in("kind", ["sale", "purchase"])
+          .limit(5000)
       ]);
 
       if (custRes.error) {
