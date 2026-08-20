@@ -104,11 +104,9 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       const smData = stockMovesRes.data ?? [];
 
       /* -----------------------
-         3) Running balance
+         3) Enrich rows with qty_pcs (no running balance yet)
       ------------------------ */
-      let running = cust.opening_balance ?? 0;
-
-      const withRunning: Transaction[] = rows.map((r) => {
+      const enrichedRows: Transaction[] = rows.map((r) => {
         let pcs: number | null | undefined = null;
         if (r.type === "Sale") {
           // Attempt to match with stock_moves
@@ -120,22 +118,13 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           );
           if (match && match.qty_pcs) pcs = match.qty_pcs;
         }
-
-        const rawRunning = running + r.amount;
-        running = Math.round(rawRunning * 100) / 100;
-        return { ...r, running_balance: running === -0 ? 0 : running, qty_pcs: pcs };
+        return { ...r, qty_pcs: pcs };
       });
 
-      setCurrentBalance(
-        withRunning.length > 0
-          ? withRunning[withRunning.length - 1].running_balance!
-          : cust.opening_balance ?? 0
-      );
-
       /* -----------------------
-         4) Group by bill
+         4) Group by bill FIRST (before computing running balance)
       ------------------------ */
-      const grouped: Grouped = withRunning.reduce((acc, t) => {
+      const grouped: Grouped = enrichedRows.reduce((acc, t) => {
         const key = t.bill_no ?? "No Bill";
         (acc[key] ||= []).push(t);
         return acc;
@@ -181,11 +170,28 @@ export default function CustomerDetailClient({ id }: { id: string }) {
         }
       );
 
+      // Sort bill groups chronologically by earliest item date
       groups.sort(
         (a, b) =>
           new Date(a.items[0]?.date || 0).getTime() -
           new Date(b.items[0]?.date || 0).getTime()
       );
+
+      /* -----------------------
+         5) Recalculate running balance in DISPLAY order
+            (bill-by-bill, item-by-item within each bill)
+            so it never appears to go backwards within a group.
+      ------------------------ */
+      let running = cust.opening_balance ?? 0;
+      for (const group of groups) {
+        for (const item of group.items) {
+          const rawRunning = running + item.amount;
+          running = Math.round(rawRunning * 100) / 100;
+          item.running_balance = running === -0 ? 0 : running;
+        }
+      }
+
+      setCurrentBalance(running);
 
       setBillGroups(groups);
       setLoading(false);
