@@ -71,86 +71,45 @@ export async function POST(req: Request) {
 
   try {
     // ----------------------------------------------------------------------
-    // CONCURRENCY-SAFE BILL NUMBER ASSIGNMENT
+    // BILL NUMBER ASSIGNMENT
     // ----------------------------------------------------------------------
+    // The mobile app already assigns a correct, atomic, gapless bill number
+    // at creation time (create_new_sale RPC). In the normal case that number
+    // is already sitting on this approval row and is already unique — so we
+    // just use it as-is, with no rewriting.
+    //
+    // We only ask the database for a *new* number when the proposed one is
+    // genuinely taken by something else (a different approval, or a bill
+    // that's already gone through to stock_moves). That allocation goes
+    // through get_next_available_bill_no(), a single atomic, locked SQL
+    // call (see SQL_ATOMIC_BILL_NO_FOR_APPROVALS.sql) — no client-side
+    // retry loop, no text-sort mis-ordering, no random-suffix fallback.
     let finalBillNo = String(billNo).trim();
-    let isUnique = false;
-    let maxTries = 10;
-    
     const isAutoNumber = /^\d+$/.test(finalBillNo);
 
-    while (!isUnique && maxTries > 0) {
-      await supabase.from("sales_approvals" as any).update({ bill_no: finalBillNo }).eq("id", approvalId);
-      
-      // Jitter to allow concurrent transactions to write proposals
-      await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 300));
+    if (isAutoNumber) {
+      const [{ data: sameRowConflict }, { data: otherRowConflict }, { data: historical }] = await Promise.all([
+        supabase.from("sales_approvals" as any).select("id").eq("id", approvalId).eq("bill_no", finalBillNo).maybeSingle(),
+        supabase.from("sales_approvals" as any).select("id").eq("bill_no", finalBillNo).neq("id", approvalId).limit(1),
+        supabase.from("stock_moves").select("id").eq("bill_no", finalBillNo).limit(1),
+      ]);
 
-      const { data: conflicts } = (await supabase
-        .from("sales_approvals" as any)
-        .select("id, created_at")
-        .eq("bill_no", finalBillNo)
-        .order("created_at", { ascending: true })) as any;
+      const alreadyOwnsThisNumber = !!sameRowConflict;
+      const takenElsewhere = (otherRowConflict && otherRowConflict.length > 0) || (historical && historical.length > 0);
 
-      const weWon = conflicts && conflicts.length > 0 && String(conflicts[0].id) === String(approvalId);
+      if (!alreadyOwnsThisNumber && takenElsewhere) {
+        const billYear = billDate ? new Date(billDate).getFullYear() : new Date().getFullYear();
+        const { data: safeNo, error: rpcError } = await supabase.rpc("get_next_available_bill_no" as any, { _year: billYear });
 
-      if (weWon) {
-        const { data: historical } = await supabase
-          .from("stock_moves")
-          .select("id")
-          .eq("bill_no", finalBillNo)
-          .limit(1);
-
-        if (!historical || historical.length === 0) {
-          isUnique = true;
-          break;
+        if (rpcError || !safeNo) {
+          throw new Error("Could not securely allocate a bill number: " + (rpcError?.message || "unknown error"));
         }
+        finalBillNo = safeNo as unknown as string;
       }
-
-      if (!isAutoNumber) {
-        isUnique = true;
-        break; 
-      }
-
-      const { data: maxMoves } = await supabase
-        .from("stock_moves")
-        .select("bill_no")
-        .not("bill_no", "is", null)
-        .order("bill_no", { ascending: false })
-        .limit(20);
-
-      const { data: maxApps } = await supabase
-        .from("sales_approvals" as any)
-        .select("bill_no")
-        .not("bill_no", "is", null)
-        .order("bill_no", { ascending: false })
-        .limit(20);
-
-      let maxNum = 0;
-      const checkMax = (arr: any[]) => {
-        arr?.forEach((r) => {
-          const numMatch = r.bill_no?.match(/^(\d+)$/);
-          if (numMatch) {
-            const num = parseInt(numMatch[1], 10);
-            if (num > maxNum) maxNum = num;
-          }
-        });
-      };
-
-      checkMax(maxMoves || []);
-      checkMax(maxApps || []);
-
-      if (maxNum > 0) {
-        finalBillNo = String(maxNum + 1);
-      } else {
-        finalBillNo = finalBillNo + "-" + Math.floor(Math.random() * 100);
-      }
-
-      maxTries--;
     }
+    // Non-numeric (manually typed) bill numbers are trusted as-is, same as before.
 
-    if (!isUnique) {
-      throw new Error("System is extremely busy. Could not securely allocate a unique bill number. Please try again.");
-    }
+    await supabase.from("sales_approvals" as any).update({ bill_no: finalBillNo }).eq("id", approvalId);
 
     // ----------------------------------------------------------------------
     // REUSED LOGIC FROM /api/sales
