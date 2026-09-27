@@ -538,6 +538,19 @@ body {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
+/* Sub executive — same shape, orange instead of green so main/sub are visually distinct at a glance */
+.exec-badge.is-sub {
+  color: #7c2d12; /* deep orange text */
+  background: linear-gradient(180deg, #fed7aa, #fdba74);
+  border-color: #fb923c;
+}
+.exec-role {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
 @media (prefers-color-scheme: dark) {
   .exec-label {
     color: #9ca3af;
@@ -546,6 +559,11 @@ body {
     color: #052e1f;
     background: linear-gradient(180deg, #86efac, #34d399);
     border-color: #22c55e;
+  }
+  .exec-badge.is-sub {
+    color: #431407;
+    background: linear-gradient(180deg, #fdba74, #fb923c);
+    border-color: #ea580c;
   }
 }
 
@@ -795,6 +813,7 @@ input[type="number"] {
 .db-exec-badge {
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   padding: 4px 10px;
   border-radius: 20px;
   font-size: 11px;
@@ -804,6 +823,17 @@ input[type="number"] {
   background-color: #ecfdf5;
   color: #047857;
   border: 1px solid #a7f3d0;
+}
+/* Sub executive — same shape, orange instead of green so main/sub are visually distinct at a glance */
+.db-exec-badge.is-sub {
+  background-color: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+.db-exec-role {
+  font-size: 9px;
+  font-weight: 800;
+  opacity: 0.75;
 }
 
 .db-stats-row {

@@ -33,9 +33,11 @@ type Transaction = LedgerRow & {
 
 type Grouped = Record<string, Transaction[]>;
 
+type ExecEntry = { name: string; role: "main" | "sub" };
+
 type BillGroup = {
   billNo: string;
-  execs: string[];
+  execs: ExecEntry[];
   items: Transaction[];
   summary: {
     billNet: number;
@@ -65,7 +67,7 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       /* -----------------------
          Fetch customer, ledger, and stock_moves ALL in parallel
       ------------------------ */
-      const [custRes, ledgerRes, stockMovesRes] = await Promise.all([
+      const [custRes, ledgerRes, stockMovesRes, execRes] = await Promise.all([
         supabase
           .from("customers")
           .select("id, name, opening_balance")
@@ -82,8 +84,27 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name)")
           .eq("customer_id", customerId)
           .in("kind", ["sale", "purchase"])
-          .limit(5000)
+          .limit(5000),
+        // Fetched straight from bill_adjustments, ordered by id: the ledger view has
+        // no ordering info for executive rows (same timestamp), but id reliably
+        // preserves insertion order, and executives are always inserted [main, sub].
+        supabase
+          .from("bill_adjustments")
+          .select("id, bill_no, details")
+          .eq("customer_id", customerId)
+          .eq("type", "executive")
+          .order("id", { ascending: true }),
       ]);
+
+      const execRoleMap = new Map<string, ExecEntry[]>();
+      (execRes.data ?? []).forEach((row: any) => {
+        if (!row.bill_no || !row.details) return;
+        const list = execRoleMap.get(row.bill_no) ?? [];
+        if (!list.some((e) => e.name === row.details)) {
+          list.push({ name: row.details, role: list.length === 0 ? "main" : "sub" });
+        }
+        execRoleMap.set(row.bill_no, list);
+      });
 
       if (custRes.error) {
         console.error(custRes.error);
@@ -132,14 +153,7 @@ export default function CustomerDetailClient({ id }: { id: string }) {
 
       const groups: BillGroup[] = Object.entries(grouped).map(
         ([billNo, itemsRaw]) => {
-          const execs = Array.from(
-            new Set(
-              itemsRaw
-                .filter((i) => i.type === "Executive")
-                .map((i) => i.details)
-                .filter(Boolean)
-            )
-          );
+          const execs = execRoleMap.get(billNo) ?? [];
 
           const items = itemsRaw.filter((i) => i.type !== "Executive");
 
@@ -268,9 +282,13 @@ export default function CustomerDetailClient({ id }: { id: string }) {
                       <div className="exec-wrap">
                         <span className="exec-label">EXECUTIVE</span>
                         <div className="exec-badges">
-                          {execs.map((name) => (
-                            <span key={name} className="exec-badge">
-                              {name}
+                          {execs.map((e) => (
+                            <span
+                              key={e.name}
+                              className={`exec-badge${e.role === "sub" ? " is-sub" : ""}`}
+                            >
+                              {e.name}
+                              {e.role === "sub" && <span className="exec-role">Sub</span>}
                             </span>
                           ))}
                         </div>

@@ -23,11 +23,13 @@ type Transaction = LedgerRow & {
   customer_name?: string;
 };
 
+type ExecEntry = { name: string; role: "main" | "sub" };
+
 type BillGroup = {
   billNo: string;
   customerId: number | null;
   customerName: string;
-  execs: string[];
+  execs: ExecEntry[];
   date: string; // The date of the bill (first transaction)
   items: Transaction[];
   summary: {
@@ -86,7 +88,7 @@ export default function DailyBillsPage() {
       // 3. Extract bill numbers and fetch corresponding Stock Moves to get pieces
       const billNos = Array.from(new Set(rows.map((r) => r.bill_no).filter(Boolean)));
       let smData: any[] = [];
-      
+
       // If there are many bills, we should fetch them safely.
       if (billNos.length > 0) {
         const smRes = await supabase
@@ -95,6 +97,30 @@ export default function DailyBillsPage() {
           .in("kind", ["sale", "purchase"])
           .in("bill_no", billNos as string[]);
         smData = smRes.data ?? [];
+      }
+
+      // 3b. Fetch executive rows straight from bill_adjustments, ordered by id.
+      // The ledger view has no ordering info (executive rows share the same
+      // timestamp), but bill_adjustments.id reliably preserves insertion
+      // order — and executives are always inserted in [main, sub] order —
+      // so the lowest id per bill is the main executive, any after it is sub.
+      const execRoleMap = new Map<string, ExecEntry[]>();
+      if (billNos.length > 0) {
+        const execRes = await supabase
+          .from("bill_adjustments")
+          .select("id, bill_no, details")
+          .eq("type", "executive")
+          .in("bill_no", billNos as string[])
+          .order("id", { ascending: true });
+
+        (execRes.data ?? []).forEach((row: any) => {
+          if (!row.bill_no || !row.details) return;
+          const list = execRoleMap.get(row.bill_no) ?? [];
+          if (!list.some((e) => e.name === row.details)) {
+            list.push({ name: row.details, role: list.length === 0 ? "main" : "sub" });
+          }
+          execRoleMap.set(row.bill_no, list);
+        });
       }
 
       // 3. Attach Customer Names & Prepare Transactions
@@ -146,11 +172,9 @@ export default function DailyBillsPage() {
         const customerId = validItemWithCustomer.customer_id;
         const customerName = validItemWithCustomer.customer_name || "";
 
-        // Extract Executives
-        const execs = Array.from(new Set(
-          sortedItems.filter((i) => i.type === "Executive").map((i) => i.details).filter(Boolean)
-        ));
-        
+        // Extract Executives (main/sub role from bill_adjustments.id order — see execRoleMap above)
+        const execs = execRoleMap.get(billNo) ?? [];
+
         const displayItems = sortedItems.filter((i) => i.type !== "Executive");
 
         const billNet = displayItems
@@ -321,10 +345,14 @@ export default function DailyBillsPage() {
                                      {isStandalone ? "Transaction" : `Bill No: ${bill.billNo}`}
                                    </span>
                                    
-                                   {/* Executive Badges */}
+                                   {/* Executive Badges — main vs sub shown separately */}
                                    {!isStandalone && bill.execs.length > 0 && bill.execs.map((e) => (
-                                     <span key={e} className="db-exec-badge">
-                                       {e}
+                                     <span
+                                       key={e.name}
+                                       className={`db-exec-badge${e.role === "sub" ? " is-sub" : ""}`}
+                                     >
+                                       {e.name}
+                                       {e.role === "sub" && <span className="db-exec-role">Sub</span>}
                                      </span>
                                    ))}
                                 </div>

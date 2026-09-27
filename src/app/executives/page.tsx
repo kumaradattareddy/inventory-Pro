@@ -18,6 +18,12 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
+// A sub executive earns a 10% commission credit on a bill; the main executive gets the full 100%.
+const SUB_EXECUTIVE_SHARE = 0.10;
+
+type ExecRole = "main" | "sub";
+type ExecEntry = { name: string; role: ExecRole };
+
 type BillItem = {
   billNo: string;
   date: string;
@@ -27,6 +33,8 @@ type BillItem = {
   paid: number;
   credit: number;
   status: "paid" | "partial" | "unpaid";
+  role?: ExecRole; // role this specific executive played on this bill (set per-executive when aggregating)
+  sharedWith?: string; // main only: name(s) of the sub executive(s) who took a cut of this bill
 };
 
 type ExecutiveStats = {
@@ -204,30 +212,24 @@ export default function ExecutivesPage() {
       }
     });
 
-    // 2. Map bill_no to executives from both bill_adjustments and ledger
-    const billToExecs: Record<string, Set<string>> = {};
+    // 2. Map bill_no to executives, with role (main/sub).
+    // bill_adjustments.id reliably preserves insertion order — executives are
+    // always inserted [main, sub] — so the lowest id per bill is the main
+    // executive and any after it is sub. (The ledger view carries the same
+    // "Executive" rows too, but with no ordering info since they share a
+    // timestamp, so bill_adjustments is used as the sole source of truth here.)
+    const billToExecs: Record<string, ExecEntry[]> = {};
+    const execAdjustments = rawAdjustments
+      .filter((adj) => adj.type?.toLowerCase() === "executive" && adj.bill_no && adj.details)
+      .sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
 
-    // From adjustments
-    rawAdjustments.forEach((adj) => {
-      if (adj.type?.toLowerCase() === "executive" && adj.bill_no && adj.details) {
-        const bNo = String(adj.bill_no).trim();
-        const exName = String(adj.details).trim();
-        if (bNo && exName) {
-          if (!billToExecs[bNo]) billToExecs[bNo] = new Set();
-          billToExecs[bNo].add(exName);
-        }
-      }
-    });
-
-    // From ledger
-    rawLedger.forEach((row) => {
-      if (row.type?.toLowerCase() === "executive" && row.bill_no && row.details) {
-        const bNo = String(row.bill_no).trim();
-        const exName = String(row.details).trim();
-        if (bNo && exName) {
-          if (!billToExecs[bNo]) billToExecs[bNo] = new Set();
-          billToExecs[bNo].add(exName);
-        }
+    execAdjustments.forEach((adj) => {
+      const bNo = String(adj.bill_no).trim();
+      const exName = String(adj.details).trim();
+      if (!bNo || !exName) return;
+      const list = billToExecs[bNo] || (billToExecs[bNo] = []);
+      if (!list.some((e) => e.name === exName)) {
+        list.push({ name: exName, role: list.length === 0 ? "main" : "sub" });
       }
     });
 
@@ -285,7 +287,7 @@ export default function ExecutivesPage() {
         customerTotalPayments[cid] = (customerTotalPayments[cid] || 0) + billPayments;
       }
 
-      const execs = Array.from(billToExecs[bNo] || []);
+      const execs = billToExecs[bNo] || [];
 
       if (billNet > 0) {
         const billObj = {
@@ -321,7 +323,7 @@ export default function ExecutivesPage() {
     rawCustomers.forEach((c) => custOpeningBalanceMap.set(c.id, Number(c.opening_balance) || 0));
 
     // 4. Run Pure Chronological FIFO Settlement for each customer (Oldest bills & opening balance cleared first)
-    const allBills: (BillItem & { execs: string[] })[] = [...unassignedCustomerBills];
+    const allBills: (BillItem & { execs: ExecEntry[] })[] = [...unassignedCustomerBills];
 
     Object.entries(customerBillsMap).forEach(([cidStr, cBills]) => {
       const cid = Number(cidStr);
@@ -362,7 +364,7 @@ export default function ExecutivesPage() {
       });
     });
 
-    return { allBills, allExecNames: Array.from(new Set(Object.values(billToExecs).flatMap((s) => Array.from(s)))) };
+    return { allBills, allExecNames: Array.from(new Set(Object.values(billToExecs).flatMap((list) => list.map((e) => e.name)))) };
   }, [rawLedger, rawAdjustments, rawPayments, rawCustomers]);
 
   // Date filtering logic
@@ -423,9 +425,17 @@ export default function ExecutivesPage() {
     const execMap: Record<string, ExecutiveStats> = {};
 
     filteredBills.forEach((bill) => {
-      const execList = bill.execs.length > 0 ? bill.execs : ["Unassigned"];
+      const execList: ExecEntry[] = bill.execs.length > 0 ? bill.execs : [{ name: "Unassigned", role: "main" }];
 
-      execList.forEach((execName) => {
+      // Sub executive(s) take a 10% commission cut each; main keeps whatever's left
+      // (90% when there's one sub) — the shares always add up to exactly 100% of the bill.
+      const subEntries = execList.filter((e) => e.role === "sub");
+      const mainShare = Math.max(0, 1 - subEntries.length * SUB_EXECUTIVE_SHARE);
+      const sharedWithNames = subEntries.map((e) => e.name).join(", ");
+
+      execList.forEach(({ name: execName, role }) => {
+        const share = role === "sub" ? SUB_EXECUTIVE_SHARE : mainShare;
+
         if (!execMap[execName]) {
           execMap[execName] = {
             name: execName,
@@ -440,16 +450,24 @@ export default function ExecutivesPage() {
           };
         }
 
-        execMap[execName].totalSold += bill.amount;
-        execMap[execName].totalPaid += bill.paid;
-        execMap[execName].totalCredit += bill.credit;
+        execMap[execName].totalSold += bill.amount * share;
+        execMap[execName].totalPaid += bill.paid * share;
+        execMap[execName].totalCredit += bill.credit * share;
         execMap[execName].billsCount += 1;
 
+        // Status breakdown reflects the bill's true payment state, not the executive's share.
         if (bill.status === "paid") execMap[execName].paidCount += 1;
         else if (bill.status === "partial") execMap[execName].partialCount += 1;
         else execMap[execName].unpaidCount += 1;
 
-        execMap[execName].bills.push(bill);
+        execMap[execName].bills.push({
+          ...bill,
+          amount: Math.round(bill.amount * share * 100) / 100,
+          paid: Math.round(bill.paid * share * 100) / 100,
+          credit: Math.round(bill.credit * share * 100) / 100,
+          role,
+          sharedWith: role === "main" && sharedWithNames ? sharedWithNames : undefined,
+        });
       });
     });
 
@@ -811,6 +829,44 @@ export default function ExecutivesPage() {
                         <span style={{ padding: "3px 8px", background: "#f1f5f9", borderRadius: 6, fontSize: 12, border: "1px solid #e2e8f0" }}>
                           {b.billNo}
                         </span>
+                        {b.role === "sub" && (
+                          <span
+                            title="Sub executive on this bill — 10% commission credit shown, not the full bill value"
+                            style={{
+                              marginLeft: 6,
+                              padding: "2px 7px",
+                              background: "#fff7ed",
+                              color: "#9a3412",
+                              border: "1px solid #fed7aa",
+                              borderRadius: 6,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            Sub · 10%
+                          </span>
+                        )}
+                        {b.role === "main" && b.sharedWith && (
+                          <span
+                            title={`10% of this bill was credited to ${b.sharedWith} as sub executive — this row shows your 90% share`}
+                            style={{
+                              marginLeft: 6,
+                              padding: "2px 7px",
+                              background: "#ecfdf5",
+                              color: "#047857",
+                              border: "1px solid #a7f3d0",
+                              borderRadius: 6,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            90% · 10% to {b.sharedWith}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: "14px 16px", fontWeight: 600, color: "#1e293b" }}>
                         {b.customerName}
