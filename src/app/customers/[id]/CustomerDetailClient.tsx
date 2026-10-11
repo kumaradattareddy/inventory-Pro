@@ -29,6 +29,7 @@ type LedgerRow = {
 type Transaction = LedgerRow & {
   running_balance?: number;
   qty_pcs?: number | null;
+  granite_size?: string | null;
 };
 
 type Grouped = Record<string, Transaction[]>;
@@ -81,7 +82,7 @@ export default function CustomerDetailClient({ id }: { id: string }) {
           .limit(5000),
         supabase
           .from("stock_moves")
-          .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name)")
+          .select("bill_no, price_per_unit, qty, qty_pcs, product:product_id(name, size, material)")
           .eq("customer_id", customerId)
           .in("kind", ["sale", "purchase"])
           .limit(5000),
@@ -129,17 +130,21 @@ export default function CustomerDetailClient({ id }: { id: string }) {
       ------------------------ */
       const enrichedRows: Transaction[] = rows.map((r) => {
         let pcs: number | null | undefined = null;
+        let graniteSize: string | null = null;
         if (r.type === "Sale") {
           // Attempt to match with stock_moves
-          const match = smData.find(sm => 
-            String(sm.bill_no) === String(r.bill_no) && 
-            Number(sm.price_per_unit) === Number(r.price_per_unit) && 
-            Number(sm.qty) === Number(r.qty) && 
+          const match: any = smData.find((sm: any) =>
+            String(sm.bill_no) === String(r.bill_no) &&
+            Number(sm.price_per_unit) === Number(r.price_per_unit) &&
+            Number(sm.qty) === Number(r.qty) &&
             (!sm.product || !r.details || r.details.includes(sm.product.name ?? ""))
           );
           if (match && match.qty_pcs) pcs = match.qty_pcs;
+          if (match?.product?.material?.toLowerCase() === "granite" && match.product.size) {
+            graniteSize = match.product.size;
+          }
         }
-        return { ...r, qty_pcs: pcs };
+        return { ...r, qty_pcs: pcs, granite_size: graniteSize };
       });
 
       /* -----------------------
@@ -340,7 +345,14 @@ export default function CustomerDetailClient({ id }: { id: string }) {
                               {new Date(t.date).toLocaleDateString("en-IN")}
                             </td>
                             <td>{t.type}</td>
-                            <td>{t.details}</td>
+                            <td>
+                              {t.details}
+                              {t.granite_size && (
+                                <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>
+                                  {t.granite_size}
+                                </div>
+                              )}
+                            </td>
                             <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                               {/* @ts-ignore */}
                               {t.qty_pcs ? `${t.qty_pcs} Pcs / ${t.qty} SqFt` : (t.qty ?? "—")}

@@ -5,30 +5,30 @@ import React from "react";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import PLStatement, { periodRange, rangeOf, type Period } from "./statement";
 
-type ViewMode = "overview" | "payables" | "receivables" | "stock" | "executives" | "payouts";
+type ViewMode = "overview" | "payables" | "receivables" | "stock" | "payouts";
 
 export default function ProfitLossPage() {
   const supabase = useMemo(() => createClient(), []);
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [loading, setLoading] = useState(true);
 
-  // Raw Data
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [stock, setStock] = useState<any[]>([]);
-  const [executives, setExecutives] = useState<{name: string, sales: number, bills: any[]}[]>([]);
-  const [payoutsList, setPayoutsList] = useState<any[]>([]);
+  // Selected period — shared by the P&L statement and the balance cards
+  const [period, setPeriod] = useState<Period>("this-month");
+  const [customFrom, setCustomFrom] = useState(() => periodRange("this-month").from);
+  const [customTo, setCustomTo] = useState(() => periodRange("this-month").to);
+  const range = rangeOf({ period, customFrom, customTo });
 
-  // Computed Totals
-  const [totals, setTotals] = useState({
-    receivables: 0,
-    payables: 0,
-    stockValue: 0,
-    topExecName: "—",
-    topExecSales: 0,
-    totalPayouts: 0,
-  });
+  // Raw rows, loaded once; balances are recalculated when the period changes
+  const [raw, setRaw] = useState<{
+    customers: any[];
+    suppliers: any[];
+    products: any[];
+    moves: any[];
+    adjustments: any[];
+    payments: any[];
+  } | null>(null);
 
   // Action states
   const [activeAction, setActiveAction] = useState<{type: string, id: number} | null>(null);
@@ -39,218 +39,33 @@ export default function ProfitLossPage() {
 
   // Payout detail
   const [selectedPayout, setSelectedPayout] = useState<any>(null);
-  const [selectedExecutive, setSelectedExecutive] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 1. CUSTOMERS (Receivables)
-      const { data: custData } = await supabase
-        .from("customer_totals")
-        .select("id, name, balance")
-        .order("balance", { ascending: false });
-
-      const rawCust = custData || [];
-      const cleanCust = rawCust.map((c: any) => {
-           const bal = Number(c.balance) || 0;
-           return {
-               ...c,
-               balance: Math.round(bal * 100) / 100 === -0 ? 0 : Math.round(bal * 100) / 100
-           };
-      });
-      setCustomers(cleanCust);
-
-      // 2. SUPPLIERS (Payables)
-      const { data: supTx } = await supabase
-        .from("supplier_transactions" as any)
-        .select("supplier_id, supplier_name, total_amount");
-
-      const supMap: Record<number, { name: string; balance: number }> = {};
-      (supTx || []).forEach((tx: any) => {
-          const id = tx.supplier_id;
-          const amt = Number(tx.total_amount) || 0;
-          if (!supMap[id]) {
-              supMap[id] = { name: tx.supplier_name, balance: 0 };
+      // Reads every row (Supabase returns at most 1000 per request)
+      const fetchAll = async (build: (from: number, to: number) => any) => {
+          const all: any[] = [];
+          for (let page = 0; page < 100; page++) {
+              const { data, error } = await build(page * 1000, page * 1000 + 999);
+              if (error) throw error;
+              all.push(...(data || []));
+              if (!data || data.length < 1000) break;
           }
-          supMap[id].balance += amt;
-      });
+          return all;
+      };
 
-      const supList = Object.entries(supMap).map(([id, val]) => {
-          const bal = Math.round(val.balance * 100) / 100;
-          return {
-              id: Number(id),
-              name: val.name,
-              balance: bal === -0 ? 0 : bal
-          };
-      });
-      setSuppliers(supList);
-
-      // 3. STOCK VALUE (Mode Price Logic)
-      const { data: stockData } = await supabase
-        .from("product_stock_live" as any)
-        .select("id, name, current_stock")
-        .gt("current_stock", 0);
-
-      const liveStock = (stockData || []) as any[];
-      let processedStock: any[] = [];
-      
-      if (liveStock.length > 0) {
-          const productIds = liveStock.map(s => s.id);
-          const { data: moves } = await supabase
-              .from("stock_moves")
-              .select("product_id, price_per_unit")
-              .eq("kind", "purchase")
-              .in("product_id", productIds);
-
-          const priceFrequency: Record<number, Record<number, number>> = {};
-          (moves || []).forEach((m: any) => {
-              if (!m.product_id || !m.price_per_unit) return;
-              if (!priceFrequency[m.product_id]) priceFrequency[m.product_id] = {};
-              const p = m.price_per_unit;
-              priceFrequency[m.product_id][p] = (priceFrequency[m.product_id][p] || 0) + 1;
-          });
-
-          const priceMap: Record<number, number> = {};
-          for (const pid of productIds) {
-              const freqs = priceFrequency[pid];
-              if (!freqs) {
-                  priceMap[pid] = 0;
-                  continue;
-              }
-              let maxFreq = 0;
-              let modePrice = 0;
-              for (const [priceStr, count] of Object.entries(freqs)) {
-                  const countNum = count as number; 
-                  const priceNum = Number(priceStr);
-                  if (countNum > maxFreq || (countNum === maxFreq && priceNum > modePrice)) {
-                      maxFreq = countNum;
-                      modePrice = priceNum;
-                  }
-              }
-              priceMap[pid] = modePrice;
-          }
-
-          processedStock = liveStock.map(item => {
-              const price = priceMap[item.id] || 0;
-              const totalValue = Math.round((Number(item.current_stock) * price) * 100) / 100;
-              return {
-                  ...item,
-                  price: price,
-                  totalValue: totalValue === -0 ? 0 : totalValue
-              };
-          }).sort((a, b) => b.totalValue - a.totalValue);
-      }
-      setStock(processedStock);
-
-      // 4. EXECUTIVE SALES
-      const [ledgerResult, adjResult, paymentsResult, customersResult] = await Promise.all([
-          supabase.from("bill_transaction_ledger").select("*"),
-          supabase.from("bill_adjustments").select("bill_no, details, type").ilike("type", "executive"),
-          supabase.from("payments").select("bill_no, amount, direction").eq("party_type", "customer").not("bill_no", "is", null),
-          supabase.from("customers").select("id, name")
+      const [customers, suppliers, products, moves, adjustments, payments] = await Promise.all([
+          fetchAll((a, b) => supabase.from("customers").select("id, name, opening_balance").order("id").range(a, b)),
+          fetchAll((a, b) => supabase.from("suppliers").select("id, name, opening_balance").order("id").range(a, b)),
+          fetchAll((a, b) => supabase.from("products").select("id, name").order("id").range(a, b)),
+          fetchAll((a, b) => supabase.from("stock_moves").select("id, kind, product_id, customer_id, supplier_id, qty, price_per_unit, ts, bill_date").order("id").range(a, b)),
+          fetchAll((a, b) => supabase.from("bill_adjustments").select("id, customer_id, type, amount, created_at").order("id").range(a, b)),
+          fetchAll((a, b) => supabase.from("payments").select("id, ts, party_type, direction, customer_id, party_id, other_name, amount, notes, bill_no, method").order("id").range(a, b)),
       ]);
 
-      const ledgerData = ledgerResult.data || [];
-      const adjustmentData = adjResult.data || [];
-      const paymentsData = paymentsResult.data || [];
-      const customersData = customersResult.data || [];
-
-      const customerMap: Record<number, string> = {};
-      customersData.forEach((c: any) => customerMap[c.id] = c.name);
-
-      const billPayments: Record<string, number> = {};
-      paymentsData.forEach((p: any) => {
-          if (p.bill_no && p.direction === "in") {
-              billPayments[p.bill_no] = (billPayments[p.bill_no] || 0) + Number(p.amount);
-          }
-      });
-
-      const execMap: Record<string, { total: number, bills: any[] }> = {};
-      const billSales: Record<string, { total: number, customerId: number | null, date: string | null }> = {};
-      const billExecs: Record<string, Set<string>> = {};
-
-      adjustmentData.forEach((row: any) => {
-          const billNo = row.bill_no ? String(row.bill_no).trim() : "—";
-          const execName = row.details ? String(row.details).trim() : "";
-          if (billNo !== "—" && execName) {
-              if (!billExecs[billNo]) billExecs[billNo] = new Set();
-              billExecs[billNo].add(execName);
-          }
-      });
-
-      ledgerData.forEach((row: any) => {
-           const billNo = row.bill_no ? String(row.bill_no).trim() : "—";
-           if (billNo === "—") return;
-           const t = row.type || "";
-           if (["Sale", "Charge", "Discount"].includes(t)) {
-               if (!billSales[billNo]) billSales[billNo] = { total: 0, customerId: row.customer_id, date: row.date };
-               const amt = Number(row.amount) || 0;
-               billSales[billNo].total += amt;
-           }
-      });
-
-      Object.keys(billSales).forEach(billNo => {
-           const { total: sales, customerId, date } = billSales[billNo];
-           if (sales <= 0) return;
-           const execs = billExecs[billNo];
-           if (execs && execs.size > 0) {
-               execs.forEach(execName => {
-                   if (!execMap[execName]) execMap[execName] = { total: 0, bills: [] };
-                   
-                   const paid = billPayments[billNo] || 0;
-                   const customerName = customerId && customerMap[customerId] ? customerMap[customerId] : "Unknown";
-                   
-                   execMap[execName].total += sales;
-                   execMap[execName].bills.push({ 
-                       billNo, 
-                       amount: sales,
-                       paid: paid,
-                       customerName,
-                       date
-                   });
-               });
-           }
-      });
-
-      const execList = Object.entries(execMap)
-          .map(([name, data]) => {
-              const roundedSales = Math.round(data.total * 100) / 100;
-              return { name, sales: roundedSales === -0 ? 0 : roundedSales, bills: data.bills };
-          })
-          .sort((a, b) => b.sales - a.sales);
-      setExecutives(execList);
-
-      // 5. PAYOUTS
-      const { data: payoutsData } = await supabase
-        .from("payments")
-        .select("id, ts, other_name, amount, notes, bill_no, method")
-        .eq("party_type", "others")
-        .eq("direction", "out")
-        .order("ts", { ascending: false });
-
-      const payouts = (payoutsData || []).map((p: any) => ({
-        id: p.id,
-        created_at: p.ts,
-        other_name: p.other_name || "Unknown",
-        amount: Number(p.amount) || 0,
-        notes: p.notes,
-        bill_no: p.bill_no,
-        method: p.method
-      }));
-      setPayoutsList(payouts);
-
-      // 6. COMPUTE GRAND TOTALS
-      const totalPayoutsVal = payouts.reduce((sum: number, p: any) => sum + p.amount, 0);
-      setTotals({
-          receivables: cleanCust.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0),
-          payables: supList.reduce((sum, s) => sum + (s.balance || 0), 0),
-          stockValue: processedStock.reduce((sum, s) => sum + s.totalValue, 0),
-          topExecName: execList.length > 0 ? execList[0].name : "—",
-          topExecSales: execList.length > 0 ? execList[0].sales : 0,
-          totalPayouts: totalPayoutsVal,
-      });
-
+      setRaw({ customers, suppliers, products, moves, adjustments, payments });
     } catch (err) {
       console.error("Error loading data:", err);
     } finally {
@@ -261,6 +76,164 @@ export default function ProfitLossPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Balances as at the end of the selected period; payouts within the period.
+  const { customers, suppliers, stock, payoutsList, totals } = useMemo(() => {
+    const empty = { customers: [] as any[], suppliers: [] as any[], stock: [] as any[], payoutsList: [] as any[], totals: { receivables: 0, payables: 0, stockValue: 0, totalPayouts: 0, billed: 0, received: 0, bought: 0, paid: 0, stockIn: 0, stockOut: 0 } };
+    if (!raw) return empty;
+
+    // UTC timestamp -> IST calendar day "YYYY-MM-DD"
+    const istDay = (ts: string | null | undefined) => {
+        if (!ts) return "0000-01-01";
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return "0000-01-01";
+        return new Date(d.getTime() + 330 * 60 * 1000).toISOString().slice(0, 10);
+    };
+    const moveDay = (m: any) => (m.bill_date ? String(m.bill_date).slice(0, 10) : istDay(m.ts));
+    // Only activity inside the selected period counts. Opening balances are
+    // included only for "All Time" (no start date).
+    const allTime = !range.from;
+    const upTo = (day: string) => !range.to || day <= range.to;
+    const within = (day: string) => (allTime || day >= range.from) && upTo(day);
+    const round = (n: number) => { const v = Math.round(n * 100) / 100; return v === 0 ? 0 : v; };
+
+    // 1. CUSTOMERS (Receivables): billed (sales + charges − discounts) − payments received
+    let billed = 0;
+    let received = 0;
+    const custMap: Record<number, { name: string; balance: number }> = {};
+    raw.customers.forEach((c: any) => { custMap[c.id] = { name: c.name, balance: allTime ? Number(c.opening_balance) || 0 : 0 }; });
+    raw.moves.forEach((m: any) => {
+        if (m.kind !== "sale" || !custMap[m.customer_id] || !within(moveDay(m))) return;
+        const v = (Number(m.qty) || 0) * (Number(m.price_per_unit) || 0);
+        custMap[m.customer_id].balance += v;
+        billed += v;
+    });
+    raw.adjustments.forEach((a: any) => {
+        if (!custMap[a.customer_id] || !within(istDay(a.created_at))) return;
+        const amt = Number(a.amount) || 0;
+        const v = String(a.type).toLowerCase() === "discount" ? -amt : amt;
+        custMap[a.customer_id].balance += v;
+        billed += v;
+    });
+    raw.payments.forEach((p: any) => {
+        if (p.party_type !== "customer" || p.direction !== "in" || !custMap[p.customer_id] || !within(istDay(p.ts))) return;
+        const v = Number(p.amount) || 0;
+        custMap[p.customer_id].balance -= v;
+        received += v;
+    });
+    const customers = Object.entries(custMap)
+        .map(([id, c]) => ({ id: Number(id), name: c.name, balance: round(c.balance) }))
+        .filter((c) => c.balance !== 0)
+        .sort((a, b) => b.balance - a.balance);
+
+    // 2. SUPPLIERS (Payables): purchases − (payments out − payments in)
+    let bought = 0;
+    let paid = 0;
+    const supMap: Record<number, { name: string; balance: number }> = {};
+    raw.suppliers.forEach((s: any) => { supMap[s.id] = { name: s.name || "Unknown", balance: allTime ? Number(s.opening_balance) || 0 : 0 }; });
+    raw.moves.forEach((m: any) => {
+        if (m.kind !== "purchase" || !supMap[m.supplier_id] || !within(moveDay(m))) return;
+        const v = (Number(m.qty) || 0) * (Number(m.price_per_unit) || 0);
+        supMap[m.supplier_id].balance += v;
+        bought += v;
+    });
+    raw.payments.forEach((p: any) => {
+        if (p.party_type !== "supplier" || !supMap[p.party_id] || !within(istDay(p.ts))) return;
+        const amt = Number(p.amount) || 0;
+        const v = p.direction === "out" ? amt : -amt;
+        supMap[p.party_id].balance -= v;
+        paid += v;
+    });
+    const suppliers = Object.entries(supMap)
+        .map(([id, s]) => ({ id: Number(id), name: s.name, balance: round(s.balance) }))
+        .filter((s) => s.balance !== 0);
+
+    // 3. STOCK: quantity added − quantity sold in the period, valued at the most
+    //    common purchase price (mode) of purchases up to the period end
+    const qtyMap: Record<number, number> = {};
+    const qtyIn: Record<number, number> = {};
+    const qtyOut: Record<number, number> = {};
+    const priceFrequency: Record<number, Record<number, number>> = {};
+    raw.moves.forEach((m: any) => {
+        if (!m.product_id || !upTo(moveDay(m))) return;
+        if (m.kind === "purchase" && m.price_per_unit) {
+            const f = (priceFrequency[m.product_id] ||= {});
+            f[m.price_per_unit] = (f[m.price_per_unit] || 0) + 1;
+        }
+        if (!within(moveDay(m))) return;
+        const q = Number(m.qty) || 0;
+        if (m.kind === "purchase" || m.kind === "adjustment_in") {
+            qtyMap[m.product_id] = (qtyMap[m.product_id] || 0) + q;
+            qtyIn[m.product_id] = (qtyIn[m.product_id] || 0) + q;
+        } else if (m.kind === "sale" || m.kind === "adjustment_out") {
+            qtyMap[m.product_id] = (qtyMap[m.product_id] || 0) - q;
+            qtyOut[m.product_id] = (qtyOut[m.product_id] || 0) + q;
+        }
+    });
+    const modePrice = (pid: number) => {
+        let maxFreq = 0;
+        let price = 0;
+        for (const [priceStr, count] of Object.entries(priceFrequency[pid] || {})) {
+            const priceNum = Number(priceStr);
+            if (count > maxFreq || (count === maxFreq && priceNum > price)) {
+                maxFreq = count;
+                price = priceNum;
+            }
+        }
+        return price;
+    };
+    const productName: Record<number, string> = {};
+    raw.products.forEach((p: any) => { productName[p.id] = p.name; });
+    let stockIn = 0;
+    let stockOut = 0;
+    const stock = Object.entries(qtyMap)
+        // All Time = stock on hand today; a period = net change (can be negative)
+        .filter(([, q]) => (allTime ? q > 0 : q !== 0))
+        .map(([id, q]) => {
+            const pid = Number(id);
+            const price = modePrice(pid);
+            return { id: pid, name: productName[pid] || `#${pid}`, current_stock: round(q), price, totalValue: round(q * price) };
+        })
+        .sort((a, b) => b.totalValue - a.totalValue);
+    Object.keys(qtyMap).forEach((id) => {
+        const price = modePrice(Number(id));
+        stockIn += (qtyIn[Number(id)] || 0) * price;
+        stockOut += (qtyOut[Number(id)] || 0) * price;
+    });
+
+    // 4. PAYOUTS made within the period
+    const payoutsList = raw.payments
+        .filter((p: any) => p.party_type === "others" && p.direction === "out" && within(istDay(p.ts)))
+        .map((p: any) => ({
+            id: p.id,
+            created_at: p.ts,
+            other_name: p.other_name || "Unknown",
+            amount: Number(p.amount) || 0,
+            notes: p.notes,
+            bill_no: p.bill_no,
+            method: p.method
+        }))
+        .sort((a: any, b: any) => (a.created_at < b.created_at ? 1 : -1));
+
+    return {
+        customers,
+        suppliers,
+        stock,
+        payoutsList,
+        totals: {
+            // All Time: what is outstanding today. A period: net of that period's activity.
+            receivables: allTime
+                ? customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0)
+                : billed - received,
+            payables: allTime
+                ? suppliers.reduce((sum, s) => sum + (s.balance > 0 ? s.balance : 0), 0)
+                : bought - paid,
+            stockValue: stock.reduce((sum, s) => sum + s.totalValue, 0),
+            totalPayouts: payoutsList.reduce((sum: number, p: any) => sum + p.amount, 0),
+            billed, received, bought, paid, stockIn, stockOut,
+        },
+    };
+  }, [raw, range.from, range.to]);
 
   /* ---- Action Handlers ---- */
   const resetAction = () => {
@@ -331,11 +304,16 @@ export default function ProfitLossPage() {
 
   const isNumeric = (v: string) => v === "" || /^\d*\.?\d*$/.test(v);
 
-  const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const fmt = (n: number) => `${Math.round(n) < 0 ? "−" : ""}₹${Math.abs(Math.round(n)).toLocaleString("en-IN")}`;
   const fmtDate = (d: string) => {
     try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
     catch { return d; }
   };
+  // e.g. "1 Sep – 30 Sep 2026"; All Time shows today's outstanding balances
+  const periodLabel = range.from ? `${fmtDate(range.from)} – ${fmtDate(range.to)}` : "All time";
+  const asOnLabel = range.from ? `• ${periodLabel}` : "as on today";
+  const periodBreakdown = (a: string, x: number, b: string, y: number) =>
+    range.from ? `${a} ${fmt(x)} − ${b} ${fmt(y)}` : null;
 
   if (loading) {
      return <div className="page p-8 text-center text-gray-500">Loading analysis...</div>;
@@ -405,7 +383,7 @@ export default function ProfitLossPage() {
             </div>
             <div className="card mt-4" style={{ borderLeft: '4px solid #dc2626' }}>
               <div className="card-body" style={{ padding: '16px 20px', background: '#fef2f2' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Outstanding</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Outstanding {asOnLabel}</div>
                 <div style={{ fontSize: 32, fontWeight: 900, color: '#111827' }}>{fmt(totals.payables)}</div>
               </div>
             </div>
@@ -481,7 +459,7 @@ export default function ProfitLossPage() {
           </div>
           <div className="card mt-4" style={{ borderLeft: '4px solid #2563eb' }}>
             <div className="card-body" style={{ padding: '16px 20px', background: '#eff6ff' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Receivable</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Receivable {asOnLabel}</div>
               <div style={{ fontSize: 32, fontWeight: 900, color: '#111827' }}>{fmt(totals.receivables)}</div>
             </div>
           </div>
@@ -547,7 +525,7 @@ export default function ProfitLossPage() {
           <div className="card mt-4" style={{ borderLeft: '4px solid #9333ea' }}>
             <div className="card-body" style={{ padding: '16px 20px', background: '#faf5ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Stock Value</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Stock Value {asOnLabel}</div>
                 <div style={{ fontSize: 32, fontWeight: 900, color: '#111827' }}>{fmt(totals.stockValue)}</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{stock.length} products in stock</div>
               </div>
@@ -580,122 +558,6 @@ export default function ProfitLossPage() {
                       <td className="right" style={{ fontWeight: 900, color: '#7c3aed', fontSize: 16, padding: '12px 16px' }}>{fmt(totals.stockValue)}</td>
                     </tr>
                   </tfoot>
-              </table>
-            </div>
-          </div>
-      </div>
-    );
-  }
-
-  // --- VIEW: EXECUTIVES ---
-  if (viewMode === "executives") {
-    if (selectedExecutive) {
-      return (
-        <div className="page">
-          <div className="page-header flex gap-4 items-center">
-            <button onClick={() => setSelectedExecutive(null)} className="btn-icon">
-              <ArrowLeftIcon className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="page-title" style={{ margin: 0 }}>{selectedExecutive.name}</h1>
-              <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500 }}>Sales History • {selectedExecutive.bills.length} bills generated</p>
-            </div>
-          </div>
-          <div className="card mt-4" style={{ borderLeft: '4px solid #10b981' }}>
-            <div className="card-body" style={{ padding: '16px 20px', background: '#ecfdf5' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Sales</div>
-              <div style={{ fontSize: 32, fontWeight: 900, color: '#111827' }}>{fmt(selectedExecutive.sales)}</div>
-            </div>
-          </div>
-          <div className="card mt-4">
-            <div className="card-body" style={{ padding: 0 }}>
-              <table className="db-table" style={{ marginBottom: 0 }}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Bill Number</th>
-                    <th>Customer Name</th>
-                    <th className="right">Sale Amount</th>
-                    <th className="right">Paid</th>
-                    <th style={{ textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedExecutive.bills.map((b: any, i: number) => {
-                    const isPaid = b.paid >= b.amount;
-                    const isPartial = b.paid > 0 && b.paid < b.amount;
-                    return (
-                      <tr key={i}>
-                        <td style={{ color: '#6b7280', fontSize: 13 }}>{b.date ? fmtDate(b.date) : "—"}</td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: '#374151' }}>{b.billNo}</div>
-                        </td>
-                        <td style={{ fontWeight: 500 }}>{b.customerName}</td>
-                        <td className="right" style={{ fontWeight: 700, color: '#059669' }}>{fmt(b.amount)}</td>
-                        <td className="right" style={{ color: isPaid ? '#059669' : '#6b7280' }}>{fmt(b.paid)}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                            background: isPaid ? '#dcfce7' : isPartial ? '#fef9c3' : '#fee2e2',
-                            color: isPaid ? '#166534' : isPartial ? '#854d0e' : '#991b1b',
-                            border: `1px solid ${isPaid ? '#bbf7d0' : isPartial ? '#fef08a' : '#fecaca'}`
-                          }}>
-                            {isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="page">
-          <div className="page-header flex gap-4 items-center">
-              <button onClick={() => setViewMode("overview")} className="btn-icon">
-                  <ArrowLeftIcon className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="page-title" style={{ margin: 0 }}>Executive Sales Performance</h1>
-                <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500 }}>Total sales generated by each executive</p>
-              </div>
-          </div>
-          <div className="card mt-4">
-            <div className="card-body" style={{ padding: 0 }}>
-              <table className="db-table" style={{ marginBottom: 0 }}>
-                  <thead>
-                      <tr>
-                          <th>Executive</th>
-                          <th className="right">Total Sales</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {executives.map((e, idx) => (
-                          <tr key={idx} onClick={() => setSelectedExecutive(e)} style={{ cursor: 'pointer' }} className="hover:bg-gray-50">
-                              <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                      <div style={{
-                                        width: 28, height: 28, borderRadius: '50%',
-                                        background: idx === 0 ? '#fef3c7' : '#ecfdf5',
-                                        color: idx === 0 ? '#92400e' : '#065f46',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontWeight: 800, fontSize: 12,
-                                        border: `1px solid ${idx === 0 ? '#fde68a' : '#a7f3d0'}`,
-                                      }}>{idx + 1}</div>
-                                      <span style={{ fontWeight: 600 }}>{e.name}</span>
-                                      {idx === 0 && <span style={{ fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 10, fontWeight: 700, border: '1px solid #fde68a' }}>Top Performer</span>}
-                                  </div>
-                              </td>
-                              <td className="right" style={{ fontWeight: 700, color: '#059669' }}>{fmt(e.sales)}</td>
-                          </tr>
-                      ))}
-                      {executives.length === 0 && <tr><td colSpan={2} className="text-center p-8 text-gray-400">No sales records found</td></tr>}
-                  </tbody>
               </table>
             </div>
           </div>
@@ -780,7 +642,7 @@ export default function ProfitLossPage() {
         </div>
         <div className="card mt-4" style={{ borderLeft: '4px solid #ea580c' }}>
           <div className="card-body" style={{ padding: '16px 20px', background: '#fff7ed' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Payouts</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Payouts • {periodLabel}</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: '#111827' }}>{fmt(totals.totalPayouts)}</div>
           </div>
         </div>
@@ -817,9 +679,19 @@ export default function ProfitLossPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Profit & Loss Overview</h1>
+        <h1 className="page-title">Profit & Loss</h1>
       </div>
 
+      <PLStatement
+        period={period}
+        setPeriod={setPeriod}
+        customFrom={customFrom}
+        setCustomFrom={setCustomFrom}
+        customTo={customTo}
+        setCustomTo={setCustomTo}
+      />
+
+      <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: "8px 0 12px" }}>Balances</h2>
       <div className="pl-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
         {/* Card 1: Payables */}
         <div className="pl-card payables">
@@ -832,8 +704,11 @@ export default function ProfitLossPage() {
                     </svg>
                 </div>
                 <h3 className="pl-card-title">Total Payables</h3>
-                <div className="pl-card-value">{fmt(totals.payables)}</div>
-                <div className="pl-card-subtitle">Owed to Suppliers</div>
+                <div className="pl-card-value" style={{ color: '#dc2626' }}>{fmt(Math.abs(totals.payables))}</div>
+                <div className="pl-card-subtitle">Owed to Suppliers {asOnLabel}</div>
+                {periodBreakdown("Bought", totals.bought, "Paid", totals.paid) && (
+                  <div className="pl-card-subtitle" style={{ fontSize: 12 }}>{periodBreakdown("Bought", totals.bought, "Paid", totals.paid)}</div>
+                )}
            </div>
            <div className="pl-card-footer">
                 <button onClick={() => setViewMode("payables")} className="pl-action-btn">
@@ -852,8 +727,11 @@ export default function ProfitLossPage() {
                     </svg>
                 </div>
                 <h3 className="pl-card-title">Total Receivables</h3>
-                <div className="pl-card-value">{fmt(totals.receivables)}</div>
-                <div className="pl-card-subtitle">Pending from Customers</div>
+                <div className="pl-card-value" style={{ color: '#16a34a' }}>{fmt(Math.abs(totals.receivables))}</div>
+                <div className="pl-card-subtitle">Pending from Customers {asOnLabel}</div>
+                {periodBreakdown("Billed", totals.billed, "Received", totals.received) && (
+                  <div className="pl-card-subtitle" style={{ fontSize: 12 }}>{periodBreakdown("Billed", totals.billed, "Received", totals.received)}</div>
+                )}
            </div>
            <div className="pl-card-footer">
                 <button onClick={() => setViewMode("receivables")} className="pl-action-btn">
@@ -870,9 +748,12 @@ export default function ProfitLossPage() {
                         <path fillRule="evenodd" d="M7.5 6v.75H5.513c-.96 0-1.764.724-1.865 1.679l-1.263 12A1.875 1.875 0 0 0 4.25 22.5h15.5a1.875 1.875 0 0 0 1.865-2.071l-1.263-12a1.875 1.875 0 0 0-1.865-1.679H16.5V6a4.5 4.5 0 1 0-9 0ZM12 3a3 3 0 0 0-3 3v.75h6V6a3 3 0 0 0-3-3Zm-3 8.25a3 3 0 1 0 6 0v-.75a.75.75 0 0 1 1.5 0v.75a4.5 4.5 0 1 1-9 0v-.75a.75.75 0 0 1 1.5 0v.75Z" clipRule="evenodd" />
                     </svg>
                 </div>
-                <h3 className="pl-card-title">Total Stock Value</h3>
+                <h3 className="pl-card-title">{range.from ? "Stock Added (Net)" : "Total Stock Value"}</h3>
                 <div className="pl-card-value">{fmt(totals.stockValue)}</div>
-                <div className="pl-card-subtitle">Current Inventory Worth</div>
+                <div className="pl-card-subtitle">{range.from ? `Inventory change ${asOnLabel}` : `Inventory Worth ${asOnLabel}`}</div>
+                {periodBreakdown("Added", totals.stockIn, "Sold", totals.stockOut) && (
+                  <div className="pl-card-subtitle" style={{ fontSize: 12 }}>{periodBreakdown("Added", totals.stockIn, "Sold", totals.stockOut)}</div>
+                )}
            </div>
            <div className="pl-card-footer">
                 <button onClick={() => setViewMode("stock")} className="pl-action-btn">
@@ -891,7 +772,7 @@ export default function ProfitLossPage() {
                 </div>
                 <h3 className="pl-card-title">Total Payouts</h3>
                 <div className="pl-card-value">{fmt(totals.totalPayouts)}</div>
-                <div className="pl-card-subtitle">Paid to Others (All Time)</div>
+                <div className="pl-card-subtitle">Paid to Others • {periodLabel}</div>
            </div>
            <div className="pl-card-footer">
                 <button 
@@ -900,33 +781,6 @@ export default function ProfitLossPage() {
                   style={{ color: '#ea580c' }}
                 >
                     View Details <span>→</span>
-                </button>
-           </div>
-        </div>
-
-        {/* Card 5: Top Executive */}
-        <div className="pl-card" style={{ borderLeft: '6px solid #10b981' }}>
-           <div className="pl-card-content">
-                <div className="pl-icon-wrapper" style={{ background: '#ecfdf5', color: '#059669' }}>
-                    <svg style={{ width: 24, height: 24 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                        <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
-                    </svg>
-                </div>
-                <h3 className="pl-card-title">Top Sales Exec</h3>
-                <div className="pl-card-value" style={{ fontSize: '24px' }}>
-                    {totals.topExecName}
-                </div>
-                <div className="pl-card-subtitle" style={{ color: '#059669', fontWeight: 700 }}>
-                    {fmt(totals.topExecSales)}
-                </div>
-           </div>
-           <div className="pl-card-footer">
-                <button 
-                  onClick={() => setViewMode("executives")}
-                  className="pl-action-btn"
-                  style={{ color: '#059669' }}
-                >
-                    View All Staff <span>→</span>
                 </button>
            </div>
         </div>
